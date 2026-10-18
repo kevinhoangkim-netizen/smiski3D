@@ -1,0 +1,20 @@
+LITTLE FIGURES STUDIO - WINDOWS
+
+1. Extract this entire ZIP folder first. Do not run files inside the ZIP.
+2. Double-click "Start Little Figures.bat".
+3. If Python 3.12 is missing, the official installer download will open.
+   Install it, then double-click "Start Little Figures.bat" again.
+4. On the first run, wait while dependencies and the photo model download.
+   Keep the black launcher window open. It opens the app in your browser.
+5. On the landing page, click "Make your little figure" or "Open the studio".
+
+No Node.js, hosting subscription, login, or paid API is required.
+The first setup needs internet access. Later launches reuse the downloads.
+This is the full app: manual poses, photo estimation, 3D editing, STL export.
+
+The app runs only on your own computer. Closing the launcher stops it.
+Save projects from the studio before closing the browser.
+
+Windows launch logic is included, but was not run on a Windows machine here.
+The server and launcher were validated in the available Linux environment.
+If setup fails, copy the message from the launcher window back into this chat.

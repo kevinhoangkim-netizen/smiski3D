@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "figures": [
+    {
+      "id": "demo-standing",
+      "name": "Little figure 1",
+      "included": true,
+      "pose": "standing",
+      "landmarks": null,
+      "height_mm": 100.0,
+      "head_size": 1.0,
+      "base": {
+        "shape": "round",
+        "margin_mm": 5.0,
+        "thickness_mm": 3.0
+      },
+      "transform": {
+        "x": 0.0,
+        "y": 0.0,
+        "rotation": 0.0,
+        "scale": 1.0
+      }
+    }
+  ],
+  "profile": "resin",
+  "minimum_feature_mm": 1.2
+}
