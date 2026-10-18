@@ -1,120 +1,115 @@
-# Little Figures Studio
+# Little Figures Studio 2
 
-A locally runnable desktop-first browser studio for original rounded humanoid figurines. Choose a manual pose, edit a real 3D model, inspect dimensions and mesh checks, and download binary STL in millimeter coordinates. No account, paid API, analytics, or third-party photo upload.
+Make an original rounded figurine scene from a photo or manual poses, then edit, inspect and export actual printable solid geometry. Runs locally without an account or paid API. The supplied visual references informed the large round head, tiny recessed face, soft body, continuous limbs, and small feet. No official sculpt or character mesh is included, and no affiliation is claimed.
 
-**Working baseline:** six manual presets, up to three individually selectable figures, orbit/zoom/pan, move/rotate gizmos, numeric translation/rotation/scale, target height, undo/redo, pedestals, two-point measurement, mesh checks, individual/group STL, color GLB, and versioned JSON projects. A procedural demo loads immediately.
+**[Download the Windows app](https://github.com/kevinhoangkim-netizen/smiski3D/raw/refs/heads/main/downloads/Little-Figures-Studio-Windows.zip?version=2)**
 
-**Photo mode:** a real local MediaPipe multi-person integration is installed and verified here with the official public sample image and a tiled two-copy fixture. Both produced pose-driven watertight STL exports. This is a functional check, not an accuracy benchmark across different people/poses. Missing-model and no-detection cases remain explicitly labeled; manual poses always work without the model. See [LIMITATIONS.md](LIMITATIONS.md).
+## Windows: no development commands needed
 
-## Run on your Windows computer
-
-**[Download the prepared Windows ZIP](https://github.com/kevinhoangkim-netizen/smiski3D/raw/refs/heads/main/downloads/Little-Figures-Studio-Windows.zip)**. If GitHub asks, sign in to the account that can access this repository.
-
-The prepared Windows ZIP includes the built website, so **Node.js and coding commands are not needed**:
-
-1. Extract the entire ZIP.
+1. Extract the entire ZIP first.
 2. Double-click **Start Little Figures.bat**.
-3. If Python 3.12 is missing, the launcher opens the official 64-bit Windows installer. Install it, then open the launcher again.
-4. Let the first setup finish downloading dependencies and the official pose model. Your browser opens automatically to the landing page. Choose **Open the studio**.
+3. If Python 3.12 is missing, the official installer download opens. Install it, then open the launcher again.
+4. Keep the launcher window open while first-time setup downloads dependencies and the two local vision models. The browser opens when the app is ready.
 
-Keep the launcher window open while using the app. Close it to stop the local server. Setup creates a private `.venv` and stores caches/model under `.local` in the extracted folder. Later launches reuse them. The server listens only on your computer's loopback interface; there is no public hosting or hosting bill.
+The ZIP includes the built website, so Node.js is unnecessary. The first setup needs Internet access; later launches reuse downloads. The outfit model is about 149 MiB; it runs on the CPU without PyTorch or a GPU. Model downloads use HTTPS and the outfit installer verifies upstream checksums at a pinned revision. No photo is sent to a model provider.
 
-The Windows batch entry point is included; the Python launcher and single-process production serving were exercised on the available Linux machine. A native Windows run has not been verified here. See `START HERE - Windows.txt` for the short version.
+For an upgrade, save any project you want to keep, close the old launcher window, and extract the new ZIP into its own folder. Existing version-1 project JSON files reopen with defaults for new fields. A previously saved photo pose without an image aspect ratio uses the legacy square default; reanalyze the original photo to recover correct aspect-aware directions.
 
-The landing page source is `frontend/public/welcome/`. It ships in the production build and opens the real studio on the same local server; there are no fake signups, testimonials, or payment links. The artwork renders actual original models from this app. Sites was unavailable in this chat, so no Sites publication was performed.
+The launcher/server were tested on Linux. Windows Python 3.12 binary wheels exist for the native dependencies, but a native Windows session has not been exercised here. Send the launcher error text if setup fails. See `START HERE - Windows.txt`.
 
-## Run
+## What the studio does
 
-Recommended: Python **3.12** (tested 3.12.14), Node **24** (tested 24.19.0), npm 11, Linux CPU. Python 3.11+ and Node 22+ may also work, but other combinations have not been verified. No GPU needed. Python installation uses platform wheels for NumPy, SciPy, Manifold, OpenCV and MediaPipe. Unsupported platforms may require their native build toolchains; use the tested Linux environment first.
+- **Up to six people:** local MediaPipe inference with overlapping-window passes for some smaller group members, duplicate suppression, crop/blur/occlusion advisories, approximate placement and relative-height suggestions.
+- **Preserved gestures:** photo torso lean, shoulder direction, head tilt and bent limbs influence the sculpt. Width/height normalization is corrected for landscape and portrait photos. Hidden limbs and single-view depth remain uncertain.
+- **Automatic styling suggestions:** local quantized CLIP compares each person's clothing/head/hand crops with supported outfit/accessory descriptions. Supported shapes are casual clothing, suit, wedding dress, cap/top hat/wide-brim hat, bouquet, veil and bow tie. Uncertain fields remain unset for review. This is closed-set similarity classification, not a general reconstruction of any garment.
+- **Per-person corrections:** rename/select a person, change pose or outfit, choose accessories and bouquet hand, and include/exclude people without rebuilding the whole project from scratch.
+- **Real geometry:** rounded implicit surfaces, fused clothing/accessory parts, real recessed eyes/mouth, and flat optional pedestals. Head-to-body proportions and limbs follow the supplied minimalist reference direction. Dark facial material is a preview/GLB treatment; STL contains physical recesses and no colors.
+- **Group keepsakes:** round or rectangular shared pedestal, raised names/dates/inscription, and occasion presets. Pedestals fuse touching figures into one scene; separate figures can also export individually.
+- **Useful editing:** orbit/pan/zoom, group-fitting camera, planar move and vertical rotation gizmos, numeric transforms, uniform scale, overall height, undo/redo, millimeter bounds and two-point surface distance.
+- **Save/recover:** explicit JSON save/open and automatic browser-local draft recovery. Remove the reference photo independently; delete the saved draft from the browser. Project files and drafts include pose coordinates/parameters, never image bytes.
+- **Share locally:** PNG image, actual 8-second WebM turntable, GLB, and a self-contained interactive HTML preview. Send the HTML file to someone to open locally: it needs no app account, CDN or server and contains no source photo. It does contain figure names and geometry. No hosted public URL/gallery is created.
 
-From the repository root:
+Photo-derived figures are stylized approximations, not likeness scans. Review hands, clothing and interactions before printing. Touching/occluded people remain harder than separate full-body subjects. All edits can be saved and corrected.
+
+## Printing
+
+Generate after geometry changes. Transform edits update the view immediately; when a shared base is enabled, regenerate it after moving people. A pending-changes notice prevents stale geometry from being exported.
+
+Target height includes an individual pedestal and resets the frontend uniform scale. Pedestal margin/thickness are template dimensions that scale with the figure. Shared pedestal dimensions are actual group-world mm. Group scenes retain each person's scale; no silent fit-to-printer deformation occurs.
+
+Run checks for watertightness, edge incidence, winding, degenerate faces, components, approximate structural feature size and contact/stability. Export refuses topology that does not survive actual STL reimport. These checks do not guarantee a print: inspect supports, orientation, drainage, actual wall thickness and build volume in your slicer. Resin/FDM thresholds are editable heuristics.
+
+**STL stores no units. Import it as millimeters.** GLB previews convert to glTF's meters/Y-up convention and preserve color. Straight-line measurement is not a geodesic surface measurement.
+
+## Development setup
+
+Tested baseline: Linux CPU, Python 3.12.14, Node 24.19.0, npm 11, Chromium. Other environments are not fully verified.
 
 ```bash
 bash scripts/install.sh
 bash scripts/dev.sh
 ```
 
-The development frontend listens on port **5173** and proxies `/api` to FastAPI on **127.0.0.1:8000**. Open port 5173 in your local browser. Keep the command running; Ctrl+C stops both services. The backend is bound to loopback. `.env.example` documents the one optional variable; export it in the shell, since `.env` is not auto-loaded.
+The development frontend uses port 5173 and proxies `/api` to FastAPI on 127.0.0.1:8000. Optional `LITTLE_FIGURES_FRONTEND_PORT` and `LITTLE_FIGURES_BACKEND_PORT` change development/test ports. `CHROMIUM_PATH` can select another browser executable for tests.
 
-Installation preserves the lockfiles, verifies normal TLS/package integrity, builds the frontend, and runs the backend tests. A failed optional model download is reported and leaves manual mode available. The first dependency install requires Internet access to PyPI and npm. A published cloud filesystem snapshot retains dependencies and the optional downloaded model, but services must restart for every new task.
+The same-process local production launcher serves the compiled studio and `/welcome/` landing page with FastAPI on an available loopback port, starting at 8765. It opens the browser after health checks. Keep the launcher open; Ctrl+C stops its child server. It does not expose a public listener or require a hosting subscription.
 
-To run separately, in two terminals from the repository root:
+No secrets are required. `.env.example` lists optional model paths. Export variables in your shell; `.env` is not automatically loaded by the backend.
 
-```bash
-.venv/bin/python -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8000
-npm run dev --prefix frontend -- --strictPort
-```
-
-## Use
-
-1. The default original figure is a **manual demo**, not an inferred photo result. Change a preset, head proportions or pedestal, then select **Generate figures**.
-2. Add up to three figures. Checkboxes include/exclude them. Click a figure in the viewport or in the subject list to edit it. Moving and rotating affect the preview immediately. Numeric fields provide keyboard-accessible alternatives to gizmos. Undo/redo also support Ctrl/Cmd+Z and Ctrl/Cmd+Shift+Z outside text inputs.
-3. Target height includes the pedestal and resets uniform scale to 100%. Pedestal thickness/margin are template millimeters and scale with the entire figure. The dimension readouts measure the current preview. Pending geometry changes must be generated before export.
-4. The ruler tool selects two mesh surface points and displays Euclidean distance in mm. Front/side/top buttons use the perspective camera from axis-aligned positions; they are not orthographic projections. Reset camera restores the perspective view.
-5. Run print checks after edits. Expand each row for its scope. Thickness and stability checks are explicitly heuristic, and overhang/support/drainage checks are not performed. Print profiles provide editable feature-warning defaults: resin 1.2 mm, FDM 2 mm.
-6. Download an individual or group **binary STL**. STL has **no unit metadata**: import as **millimeters** in your slicer. A group export performs a true solid union where objects touch and preserves separated solids where they do not. Color GLB previews convert the internal Z-up millimeter frame to Y-up meters. GLB is a viewing format, not the printable export.
-7. Save/reopen JSON projects to retain poses and parameters. Photos are never stored in them. Saving is explicit; closing an unsaved browser tab discards edits.
-
-### Enable photo estimation
-
-The official model is already installed in this prepared environment. For a fresh checkout, allow **storage.googleapis.com** in the environment's Internet settings if necessary, then run:
+### Vision model installation
 
 ```bash
 .venv/bin/python scripts/download_model.py
+.venv/bin/python -m pip install -r backend/requirements-appearance.txt
+.venv/bin/python scripts/download_appearance_model.py
 ```
 
-The script downloads the official versioned MediaPipe `pose_landmarker_lite` task over verified HTTPS into ignored `.local/`. The printed SHA256 is an informational fingerprint, not a claimed upstream checksum. No downloaded model is redistributed in this repository. Refresh the browser to update model availability.
+The Windows launcher and installation script perform these steps automatically. The small pose model downloads from `storage.googleapis.com`. The pinned outfit model downloads from `huggingface.co` and its actual download CDN `us.aws.cdn.hf.co`. The downloader verifies the model's upstream SHA-256 and tokenizer Git object checksum before writing a local manifest; inference verifies the installed SHA-256 values before use. Missing/unusable model files are reported explicitly rather than converted into fake photo results. Models are not redistributed inside the source ZIP.
 
-Choose **From a photo** and upload JPEG/PNG/WEBP, at most 10 MB / 20 MP. Uploads may briefly spool to framework-managed temporary files, deleted on close immediately after the bounded read. Decoded images stay in memory, EXIF-oriented and downsampled to 1600 px for CPU inference. Up to three detected people are shown with confidence warnings. Detection is not an identity/likeness reconstruction. Hidden/uncertain limbs use neutral fallbacks; depth is conservative. Review the pose and generate explicitly. If no people are detected, no new models are fabricated and existing figures remain unchanged.
-
-## Validation
+## Validation and examples
 
 ```bash
 .venv/bin/python -m pytest -q
 npm run build --prefix frontend
 npm run test:e2e --prefix frontend
 .venv/bin/python -m scripts.generate_examples
+.venv/bin/python -m scripts.verify_photo /path/to/full-body-photo.jpg --expected-people 2
+.venv/bin/python scripts/package_windows.py
 ```
 
-The browser suite uses Playwright and system Chromium at `/usr/bin/chromium`, starts both services if necessary, tests a real rendered workflow and inspects the actual downloaded STL's binary triangles and height. It also checks transforms/undo, project reopening, GLB unit conversion, mobile overflow and invalid-image error handling. An optional fourth test exercises real two-person inference and exclusion when the local public fixture and model are installed; it is explicitly skipped if absent. For other systems, adjust `frontend/playwright.config.ts` to your Chromium path or install a Playwright-managed browser. Screenshots are generated in `examples/` and failure traces in ignored `.local/playwright-results/`.
+Python tests cover geometry/export, every manual pose and supported accessory, aspect-corrected photo gestures, shared inscribed bases, exact dimensions, defect detection, inclusion/exclusion, schema migration, bounded uploads/queues, and inference abstention/error contracts. Browser tests exercise WebGL, editing, recovery, comparison, cancellation, stale-response protection, real binary downloads, GLB units, actual video and offline preview rendering/privacy. Mocked analysis tests validate the UI contract, not model accuracy.
 
-The Python suite covers every manual pose, STL reimport, 100 mm target height, manifold/watertight solids, group inclusion and scale, overlapping solid union, measurement math, deliberately defective meshes, upload limits, schema validation, and explicit inference failure/no-detection handling. Mocked pose failures test contracts, **not** real photo accuracy. Real one-person and two-copy-photo inference was separately exercised end to end. See [LIMITATIONS.md](LIMITATIONS.md) for the observed results and scope.
+Real-input fixtures are kept only in ignored `.local/`; they are not redistributed as repository photos. The official public MediaPipe pose sample and tiled copies check one/two/six-person plumbing, not broad multi-person accuracy. See [LIMITATIONS.md](LIMITATIONS.md) for the precise verification scope and known failure modes.
 
-To verify a real image through inference, generation, export and STL reimport:
+Release validation: 98 Python tests passed, the production build passed, and all 16 browser scenarios passed across the full run and focused reruns. A real wedding photo also completed the production launcher's analyze/generate/validate/export flow: two people and an inscribed shared pedestal became one watertight STL solid, with reimported dimensions matching validation within 0.01 mm. Native Windows remains untested.
 
-```bash
-.venv/bin/python -m scripts.verify_photo /path/to/full-body-photo.jpg --expected-people 1
-```
-
-The test reference used here is the official public `https://storage.googleapis.com/mediapipe-assets/pose.jpg` image, downloaded only to ignored `.local/pose-test.jpg`. A side-by-side copy is stored in ignored `.local/two-person-test.jpg` to test multi-person plumbing. These photos are not redistributed as repository assets. No new user photo is required to explore the manual demo.
-
-[Example binary STL](examples/standing-100mm.stl) · [Example project](examples/standing.project.json) · [Manual pose data](examples/manual-poses.json)
+[Example STL](examples/standing-100mm.stl) · [Example project](examples/standing.project.json) · [Architecture](ARCHITECTURE.md)
 
 ## API
 
-FastAPI's `/docs` provides interactive OpenAPI documentation; `/openapi.json` exposes the schemas. Unknown fields are rejected; names, figure counts, dimensions, landmarks and transformations are bounded by Pydantic. See `backend/app/schemas.py` for complete contracts.
+FastAPI `/docs` provides interactive OpenAPI; `/openapi.json` contains the typed contracts. Unknown fields and unsupported accessory values are rejected. Project `version:1` remains backward compatible; application version is 2.0.0.
 
 | Method / path | Input | Result |
 | --- | --- | --- |
-| GET `/api/health` | — | Backend status, model availability, units and axis |
+| GET `/api/health` | — | App/version, pose/appearance availability, max people, mm/Z-up |
 | GET `/api/poses` | — | Supported manual presets |
-| POST `/api/analyze` | multipart image field `file` | Detected subjects/landmarks/bounds/warnings, or explicit 413/415/503 |
-| POST `/api/project/check` | Version-1 Project JSON | Validated, normalized project; 422 for invalid input |
-| POST `/api/jobs` | Project JSON | Stable job ID, 202; at most 3 figures; 429 when queue is full |
-| GET `/api/jobs/{id}` | job ID | queued/generating/validating/ready/error; ready results include triangle geometry and reports |
-| POST `/api/validate` | Project JSON | Per-figure mesh checks and combined bounds |
-| POST `/api/export/stl` | `{ "project": Project, "figure_id": null }` | Combined binary STL; specify an included ID for one figure |
+| POST `/api/analyze` | Multipart image `file` | People, landmarks/aspect, approximate layout/heights, styling suggestions and uncertainty |
+| POST `/api/project/check` | Project JSON | Normalized validated project; old projects receive new defaults |
+| POST `/api/jobs` | Project JSON | Stable job ID, 202; bounded queue |
+| GET `/api/jobs/{id}` | Job ID | queued/generating/validating/ready/error; ready includes indexed meshes and reports |
+| POST `/api/validate` | Project JSON | Per-object and combined checks/bounds |
+| POST `/api/export/stl` | `{ "project": Project, "figure_id": null }` | Binary combined STL; use included ID for a separate figure |
 
-Jobs are in memory, bounded to 24 results with 30-minute expiration when new jobs arrive. At most two geometry operations run concurrently. Photos are not in jobs. This is a single-user local development application, not a hardened public multi-tenant service. Do not expose the development server as a public production API.
+At most two geometry operations run concurrently, four pending jobs are accepted, and at most twelve in-memory results are retained. Completed results expire after 30 minutes when new work arrives. Photo inference is serialized and no photos are stored in jobs. This is a local single-user app; public multi-tenant hosting still needs authentication, isolation, stronger request scheduling and operational controls.
 
 ## Troubleshooting
 
-- **Cannot reach backend:** run both services with `scripts/dev.sh`; the Vite `/api` proxy targets port 8000.
-- **npm cache is unwritable:** the installer already uses `.local/npm-cache`. Use `npm ci --prefix frontend --cache "$PWD/.local/npm-cache"` for manual installs.
-- **Model download returns 403:** allow `storage.googleapis.com` in cloud environment settings. Manual mode does not require it. No token is needed for the public official model.
-- **Model runtime fails:** inspect the backend log, verify the Python lockfile installation and use a trusted supported `.task` model. Missing native system libraries can affect OpenCV/MediaPipe on other operating systems.
-- **3D viewport unavailable:** enable browser hardware acceleration/WebGL. The UI reports this. Backend STL generation does not depend on WebGL.
-- **No people detected:** try a clear full-body photo. Use an explicitly chosen manual preset if detection remains uncertain.
-- **Print check warnings:** use a pedestal, inspect mesh orientation and supports in a slicer, and compare feature thresholds with your printer/material.
-
-See [ARCHITECTURE.md](ARCHITECTURE.md) for coordinate and privacy contracts. The design follows the brief's high-level rounded collectible aesthetic; it uses no official sculpt, mesh, packaging, logo or character. No affiliation is claimed. Browser research tools were unavailable, so the supplied textual style description was used instead of external visual references.
+- **Wrong/old app opens:** close the earlier launcher window and restart the new extracted package. A different occupied port causes the launcher to choose another local port.
+- **First setup is slow:** dependencies and model weights are downloaded once. Keep the launcher open and connected to the Internet.
+- **Outfits unavailable:** inspect the launcher error; allow the model host/CDN if your network blocks it, then reopen the launcher to retry. Manual styling and pose workflows remain usable.
+- **No people or wrong count:** choose a clear full-body photo. Crowding, hidden faces, small subjects and overlapping people can cause misses/duplicates. Review subject checkboxes before generating.
+- **Uncertain/wrong outfit:** use per-person correction controls. The supported category set is limited and small accessories need enough visible pixels.
+- **Cannot reach backend in development:** start both services with `scripts/dev.sh` and check that frontend/backend port overrides agree.
+- **Unwritable npm cache:** use the install script, which selects `.local/npm-cache`.
+- **WebGL/video unavailable:** enable browser hardware acceleration or use another supported browser. PNG/offline-preview alternatives are available when WebM recording is unsupported.
+- **Sharing:** send the downloaded HTML file, PNG or WebM. These are file exports; they do not publish the photo or create a website URL.

@@ -24,7 +24,8 @@ def run(command):
 def is_our_app(port):
     try:
         with HEALTH.open(f'http://127.0.0.1:{port}/api/health',timeout=2) as response:
-            return json.load(response).get('app')=='little-figures-studio'
+            body=json.load(response)
+            return body.get('app')=='little-figures-studio' and body.get('version')=='2.0.0'
     except Exception:
         return False
 
@@ -42,10 +43,14 @@ def prepare(skip_install=False):
         run([sys.executable,'-m','venv',VENV])
     lock=ROOT/'backend/requirements.lock.txt'
     stamp=LOCAL/'local-install.sha256'
-    expected=hashlib.sha256(lock.read_bytes()).hexdigest()
+    appearance_lock=ROOT/'backend/requirements-appearance.txt'
+    expected=hashlib.sha256(lock.read_bytes()+(appearance_lock.read_bytes() if appearance_lock.exists() else b'')).hexdigest()
     if not skip_install and (not stamp.is_file() or stamp.read_text()!=expected):
         print('First-time setup: downloading app dependencies. This can take a few minutes.',flush=True)
         run([PYTHON,'-m','pip','install','--disable-pip-version-check','-r',lock])
+        if appearance_lock.exists():
+            print('Installing the local automatic outfit recognizer...',flush=True)
+            run([PYTHON,'-m','pip','install','--disable-pip-version-check','-r',appearance_lock])
         stamp.write_text(expected)
     if not (ROOT/'frontend/dist/index.html').is_file():
         npm=shutil.which('npm')
@@ -59,6 +64,13 @@ def prepare(skip_install=False):
             run([PYTHON,'scripts/download_model.py'])
         except subprocess.CalledProcessError:
             print('Photo model download failed. You can still use all manual poses; retry when online.',flush=True)
+
+    if not (LOCAL/'appearance/manifest.json').is_file():
+        print('Downloading the local outfit/accessory model. This can take a few minutes...',flush=True)
+        try:
+            run([PYTHON,'scripts/download_appearance_model.py'])
+        except subprocess.CalledProcessError:
+            print('Outfit model download failed. Pose/manual styling still works; reopen the launcher when online to retry.',flush=True)
 
 def main():
     parser=argparse.ArgumentParser()

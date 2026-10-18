@@ -10,7 +10,7 @@ from backend.app.pose import close
 
 parser=argparse.ArgumentParser()
 parser.add_argument('image',type=Path)
-parser.add_argument('--expected-people',type=int,choices=[1,2,3])
+parser.add_argument('--expected-people',type=int,choices=[1,2,3,4,5,6])
 args=parser.parse_args()
 with TestClient(app) as client:
     with args.image.open('rb') as image:
@@ -19,7 +19,13 @@ with TestClient(app) as client:
     subjects=response.json()['subjects']
     assert subjects,'No people detected: use a clear full-body reference.'
     if args.expected_people: assert len(subjects)==args.expected_people,len(subjects)
-    figures=[Figure(id=s['id'],pose='photo',landmarks=s['landmarks'],transform={'x':i*100}) for i,s in enumerate(subjects)]
+    figures=[Figure(
+        id=s['id'], pose='photo', landmarks=s['landmarks'],
+        photo_aspect=s.get('photo_aspect',1), appearance=s.get('appearance',{}),
+        appearance_source='automatic' if s.get('appearance_detection',{}).get('status')!='unavailable' else 'unavailable',
+        analysis_warnings=s.get('warnings',[]) + s.get('appearance_detection',{}).get('warnings',[]),
+        transform={'x':i*100},
+    ) for i,s in enumerate(subjects)]
     project=Project(figures=figures).model_dump()
     created=client.post('/api/jobs',json=project)
     assert created.status_code==202,created.text

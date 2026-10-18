@@ -7,6 +7,7 @@
       "included": true,
       "pose": "standing",
       "landmarks": null,
+      "photo_aspect": 1.0,
       "height_mm": 100.0,
       "head_size": 1.0,
       "base": {
@@ -19,9 +20,26 @@
         "y": 0.0,
         "rotation": 0.0,
         "scale": 1.0
-      }
+      },
+      "appearance": {
+        "outfit": "none",
+        "accessories": [],
+        "hat_style": "top-hat",
+        "bouquet_hand": "both"
+      },
+      "appearance_source": "manual",
+      "appearance_confidence": null,
+      "analysis_warnings": []
     }
   ],
   "profile": "resin",
-  "minimum_feature_mm": 1.2
+  "minimum_feature_mm": 1.2,
+  "shared_base": {
+    "shape": "none",
+    "margin_mm": 8.0,
+    "thickness_mm": 3.0,
+    "inscription": "",
+    "text_size_mm": 4.0
+  },
+  "occasion": "everyday"
 }

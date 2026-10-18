@@ -1,20 +1,27 @@
-LITTLE FIGURES STUDIO - WINDOWS
+LITTLE FIGURES STUDIO 2 - WINDOWS
 
-1. Extract this entire ZIP folder first. Do not run files inside the ZIP.
+1. Extract the entire ZIP. Do not run the launcher inside the ZIP.
 2. Double-click "Start Little Figures.bat".
-3. If Python 3.12 is missing, the official installer download will open.
-   Install it, then double-click "Start Little Figures.bat" again.
-4. On the first run, wait while dependencies and the photo model download.
-   Keep the black launcher window open. It opens the app in your browser.
-5. On the landing page, click "Make your little figure" or "Open the studio".
+3. If Python 3.12 is missing, the official installer download opens.
+   Install it, then double-click the launcher again.
+4. First setup downloads dependencies and two local vision models.
+   The outfit model is about 149 MiB. Keep the launcher window open.
+5. Your browser opens when ready. Choose "Open the studio".
 
-No Node.js, hosting subscription, login, or paid API is required.
-The first setup needs internet access. Later launches reuse the downloads.
-This is the full app: manual poses, photo estimation, 3D editing, STL export.
+No Node.js, hosting subscription, login or paid API is needed.
+Your photos are processed on this computer, not uploaded to a model provider.
 
-The app runs only on your own computer. Closing the launcher stops it.
-Save projects from the studio before closing the browser.
+New: six-person scenes, reference-inspired rounded figures, automatic outfit
+suggestions, suit/dress/hat/bouquet/veil/bow-tie correction controls, shared
+inscribed pedestal, browser draft recovery, PNG/video/offline 3D sharing.
+Review automatic guesses and print checks before making a physical figure.
 
-Windows launch logic is included, but was not run on a Windows machine here.
-The server and launcher were validated in the available Linux environment.
-If setup fails, copy the message from the launcher window back into this chat.
+To upgrade: save any old project, close the previous launcher, extract this ZIP
+into its own folder, then run the new launcher. Old JSON projects reopen.
+
+Closing the launcher stops this local app. Explicitly save important projects.
+Share exports contain models/names, never the original photo.
+
+Windows-specific launch behavior was not tested on a native Windows machine.
+The app and launcher were tested in the available Linux environment.
+If setup fails, copy the launcher message back into the chat.

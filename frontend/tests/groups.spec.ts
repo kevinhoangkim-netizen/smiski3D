@@ -1,0 +1,72 @@
+import { test, expect } from '@playwright/test';
+
+const ready=(page:any)=>expect(page.getByRole('button',{name:'Download STL',exact:true})).toBeEnabled({timeout:45000});
+
+test('six-person scene keeps styling per person and browser draft can be restored and deleted',async({page})=>{
+ await page.goto('/');await ready(page);
+ await page.getByLabel('Outfit for Little figure 1').selectOption('suit');
+ await page.getByRole('checkbox',{name:'Bow tie',exact:true}).check();
+ await page.waitForFunction(()=>JSON.parse(localStorage.getItem('little-figures-studio:draft:v2')||'null')?.project.figures[0].appearance.outfit==='suit');
+ await page.reload();await ready(page);
+ await expect(page.getByLabel('Outfit for Little figure 1')).toHaveValue('suit');
+ await expect(page.getByRole('checkbox',{name:'Bow tie',exact:true})).toBeChecked();
+ await expect(page.getByText('Your last local draft is restored. Photos are not saved.')).toBeVisible();
+ await page.getByRole('button',{name:'Add a little figure'}).click();
+ await expect(page.getByLabel('Outfit for Little figure 2')).toHaveValue('none');
+ await page.getByLabel('Outfit for Little figure 2').selectOption('wedding-dress');
+ await page.getByRole('checkbox',{name:'Bouquet',exact:true}).check();
+ await expect(page.getByLabel('Bouquet placement')).toHaveValue('both');
+ await page.getByLabel('Bouquet placement').selectOption('left');
+ for(let i=0;i<4;i++)await page.getByRole('button',{name:'Add a little figure'}).click();
+ await expect(page.getByRole('button',{name:'Add a little figure'})).toBeDisabled();
+ await expect(page.getByRole('checkbox',{name:/^Include /})).toHaveCount(6);
+ await page.getByRole('button',{name:'Little figure 1 Manual preset'}).click();
+ await expect(page.getByLabel('Outfit for Little figure 1')).toHaveValue('suit');
+ await page.getByRole('button',{name:'Little figure 2 Manual preset'}).click();
+ await expect(page.getByLabel('Outfit for Little figure 2')).toHaveValue('wedding-dress');
+ await expect(page.getByLabel('Bouquet placement')).toHaveValue('left');
+ await page.getByLabel('What are we celebrating?').selectOption('wedding');
+ await expect(page.getByLabel('Group pedestal',{exact:true})).toHaveValue('rectangle');
+ await expect(page.getByLabel('Names, a date, a little message')).toHaveValue('Better together');
+ await page.getByLabel('Names, a date, a little message').fill('Kim & Alex 10.18.2026');
+ await page.getByLabel('What are we celebrating?').selectOption('family');
+ await expect(page.getByLabel('Names, a date, a little message')).toHaveValue('Kim & Alex 10.18.2026');
+ await page.waitForFunction(()=>JSON.parse(localStorage.getItem('little-figures-studio:draft:v2')||'null')?.project.figures.length===6&&JSON.parse(localStorage.getItem('little-figures-studio:draft:v2')||'null')?.project.shared_base.inscription==='Kim & Alex 10.18.2026');
+ const draft=await page.evaluate(()=>JSON.parse(localStorage.getItem('little-figures-studio:draft:v2')!));
+ expect(draft.project.shared_base.inscription).toBe('Kim & Alex 10.18.2026');
+ expect(JSON.stringify(draft)).not.toContain('blob:');
+ await page.getByRole('button',{name:'Delete saved draft'}).click();
+ await expect.poll(()=>page.evaluate(()=>localStorage.getItem('little-figures-studio:draft:v2'))).toBeNull();
+ await page.waitForTimeout(800);
+ expect(await page.evaluate(()=>localStorage.getItem('little-figures-studio:draft:v2'))).toBeNull();
+ await expect(page.getByRole('checkbox',{name:/^Include /})).toHaveCount(6);
+});
+
+test('automatic photo suggestions, relative arrangement, comparison and photo removal',async({page,request})=>{
+ const defaults=await (await request.post('/api/project/check',{data:{version:1,figures:[{id:'fixture',pose:'standing'}]}})).json();
+ // This fixture tests the UI/API contract; real classifier accuracy is tested separately.
+ const landmarks=Array.from({length:33},()=>({x:.5,y:.5,z:0,visibility:1}));
+ const appearance={outfit:'suit',accessories:['hat'],hat_style:'top-hat',bouquet_hand:'both'};
+ await page.route('**/api/analyze',route=>route.fulfill({json:{subjects:[{id:'photo-a',name:'Person 1',landmarks,bbox:[.1,.1,.4,.9],photo_aspect:1.5,confidence:.9,warnings:[],appearance,appearance_detection:{status:'ready',model:'UI contract fixture',confidence:null,warnings:[]},suggested_transform:{x:-35,y:0,scale:1},suggested_height_mm:90},{id:'photo-b',name:'Person 2',landmarks,bbox:[.6,.2,.9,.9],photo_aspect:1.5,confidence:.9,warnings:[],appearance:{...appearance,outfit:'wedding-dress',accessories:['bouquet','veil']},appearance_detection:{status:'uncertain',model:'UI contract fixture',confidence:null,warnings:['Review the partially hidden bouquet.']},suggested_transform:{x:35,y:2,scale:1},suggested_height_mm:78}],warnings:['Depth is estimated.']}}));
+ await page.goto('/');await ready(page);
+ await page.getByRole('button',{name:'From a photo'}).click();
+ const tinyPng=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j7X0AAAAASUVORK5CYII=','base64');
+ await page.locator('input[type=file][accept="image/jpeg,image/png,image/webp"]').setInputFiles({name:'private-wedding.png',mimeType:'image/png',buffer:tinyPng});
+ await expect(page.getByRole('checkbox',{name:'Include Person 2'})).toBeChecked();
+ await expect(page.getByLabel('Outfit for Person 1')).toHaveValue('suit');
+ await expect(page.getByRole('checkbox',{name:'Hat',exact:true})).toBeChecked();
+ await expect(page.getByRole('img',{name:'Original photo for before and after comparison'})).toBeVisible();
+ await page.getByRole('button',{name:'Person 2 Estimated photo pose'}).click();
+ await expect(page.getByLabel('Target overall height')).toHaveValue('78');
+ await expect(page.getByLabel('X position')).toHaveValue('35');
+ await expect(page.getByLabel('Outfit for Person 2')).toHaveValue('wedding-dress');
+ await page.getByRole('checkbox',{name:'Bouquet',exact:true}).uncheck();
+ await expect(page.getByText('Your styling',{exact:true})).toBeVisible();
+ await page.getByRole('button',{name:'Remove reference photo'}).click();
+ await expect(page.getByRole('img',{name:'Original photo for before and after comparison'})).toHaveCount(0);
+ await expect(page.getByRole('checkbox',{name:'Include Person 2'})).toBeChecked();
+ await page.waitForFunction(()=>JSON.parse(localStorage.getItem('little-figures-studio:draft:v2')||'null')?.project.figures[1]?.name==='Person 2');
+ const draft=await page.evaluate(()=>localStorage.getItem('little-figures-studio:draft:v2'));
+ expect(JSON.parse(draft!).project.figures[1].photo_aspect).toBe(1.5);expect(draft).not.toContain('private-wedding');expect(draft).not.toContain('blob:');
+ expect(defaults.figures).toHaveLength(1);
+});

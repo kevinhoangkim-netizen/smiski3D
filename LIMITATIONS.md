@@ -1,50 +1,42 @@
-# Current limits and validation scope
+# Limits and verification scope
 
-## Available baseline
+## Photo interpretation
 
-Manual-pose generation produces real original solid meshes with a browser editor and binary STL export. All six presets are deterministic. Individual and group layouts retain explicit millimeter scales. JSON projects reopen parameters; GLB is an optional color preview.
+A single photograph cannot establish true height, hidden limbs, exact floor depth or unseen garment surfaces. Pose fitting preserves visible image-space gesture using stylized anatomical lengths. Relative heights/layout are estimates; portrait/landscape normalization is corrected using the saved image aspect. Older photo projects without this field use the square-image legacy default and should be reanalyzed for improved directions.
 
-## Photo inference: installed and exercised, limited coverage
+Six people is a cap, not a detection guarantee. Overlapping-window inference can still miss small/occluded people or produce duplicates in crowded scenes. Subject inclusion and corrections must be reviewed. A six-copy collage of the public MediaPipe sample demonstrates multi-person plumbing; it does not represent a diverse natural group benchmark. No identity or likeness reconstruction is promised.
 
-The initial official-model download returned HTTP CONNECT 403. After the required `storage.googleapis.com` network setting was saved, a subsequent download succeeded with normal TLS verification. The model is installed in ignored `.local/pose_landmarker_lite.task`. This environment needs no paid API or credential.
+## Automatic clothing and accessories
 
-Real MediaPipe CPU inference was exercised on the official public `mediapipe-assets/pose.jpg` sample (one detected person, mean joint visibility 0.994) and a side-by-side two-copy fixture (two detected people). Both produced actual pose-driven STL geometry, reimported as watertight and consistently wound, at 90.000 mm total height. The tiled fixture checks multi-person plumbing; it is not evidence for diverse group photos or crowded-scene accuracy. No broad accuracy benchmark, genuine distinct-person group set, or three-person real-photo regression was run.
+Local CLIP compares image crops with a fixed supported category set. It is not an instance-segmentation system, a garment pattern reconstructor, or a universally accurate accessory detector. Close/overlapping people can contaminate crops. Small hats/flowers/ties and transparent veils can be uncertain or missed. Unsupported garments and weak comparisons abstain rather than being called confident detections. Raw similarity is not a calibrated probability.
 
-The browser workflow also verifies real two-person upload, subject exclusion and STL download when those local fixtures and the model are available. It is explicitly optional/skipped on a clean checkout without the reference fixture/model. Mocked failure tests verify error contracts, not estimator accuracy. Photos are not fabricated and manual output is not called inferred.
+Supported printable forms: classic/casual/suit/wedding dress; cap/top hat/wide brim; bouquet, veil, bow tie. Other clothing requires future templates. Bouquets and veils use chunky supported geometry, not individual flower petals or cloth physics. Automatic suggestions are editable, and changing an occasion does not overwrite the detected people with arbitrary wedding outfits.
 
-## Modeling
+The roughly 149 MiB of local classifier weights are downloaded separately with checksum verification. The measured CPU process peaked around 635 MiB of memory in the small validation set. Pose/model runtime failures are explicit. If installation is blocked, pose/manual editing can continue; this does not mean automatic clothing recognition is working.
 
-- Approximate original collectibles, not scans, identity reconstructions or accurate unseen surfaces.
-- Canonical anatomy, clamped inferred depth, and neutral low-confidence limbs. Complex occlusion, crossed limbs, lying poses and severe perspective can produce poor fits even after the estimator is enabled.
-- Implicit primitives are sampled at 0.65 template-mm spacing, with 0.025 template-mm surface simplification; finite tessellation can be visible at close zoom. No hair/clothes reconstruction, detailed fingers, hollowing, resin drain holes, supports or toolpaths.
-- Selecting overlapping figures can require the subject list. Moves are constrained to the build plane and rotations to the vertical axis; height/scale are uniform. Camera presets are axis-aligned perspective views, not orthographic cameras.
-- Pedestal margin/thickness are canonical-template dimensions scaled with target height, not independently fixed final physical dimensions. The UI states this. Dimension cards display actual mesh bounds after generation.
-- Undo/redo applies to project edits, not camera positions or photo uploads. No autosave. Save a JSON project before closing the tab.
+Real-image spot checks recognized a bride's wedding dress and bouquet in a hugging couple, and a suit in a separate full-body wedding photo. The partly hidden groom abstained; bouquet ownership was ambiguous in the other photo. Direct hat/bow-tie crops abstained, and a cropped three-person wedding photo yielded only one person. These are useful failure examples, not an accuracy benchmark. A six-person check used tiled copies of the pose sample rather than six distinct people.
 
-## Printability
+## Geometry and printing
 
-Watertightness, edge manifold incidence, winding, components and degenerate triangles are direct geometric checks. They do not detect all vertex topology defects, self-intersections introduced by arbitrary external meshes (not accepted by the app), or printer-specific faults. Structural thickness is a parameter estimate, not a full local thickness solver. Stability uses contact-area/hull and center-of-mass heuristics. Raised arms and seated/leaning postures may require supports even when checks pass. No claim of guaranteed printability is made.
+The figures follow the supplied high-level rounded style but are original procedural sculpts. No proprietary mesh or official sculpt/packaging is used. Finite sampling/simplification can be visible at close zoom. Tiny facial marks are physical shallow recesses; dark paint-like material is only in the preview/GLB. STL has neither colors nor units. A physical glowing figure requires an appropriate material.
 
-STL stores no units. Import as millimeters. Group exports can contain multiple disconnected solids by design; sliced arrangement and printer build volume must be checked independently. GLB uses meters/Y-up and should not replace the printable STL.
+Mesh tests do not guarantee print success. Thickness and stability are heuristics, not complete wall-thickness/overhang/load analysis. No supports, slicing, toolpaths, hollowing or drainage are generated. Inspect supports, printer build volume, resin/material behavior and orientation in a slicer. Shared base and inscription can increase total scene dimensions; no silent scale-to-printer is applied. Separate figures may intentionally export as disjoint closed solids.
 
-## Runtime
+## Local saving and sharing
 
-Tested on this Linux CPU environment with Python 3.12.14, Node 24.19.0 and system Chromium. Other OS/Python/browser combinations are not verified. Dependencies/model require Internet access to install; use the prepared environment snapshot afterward. WebGL requires browser support. The local API has no user authentication and should not be exposed as a public production service.
+Autosave is browser-local, not a cloud backup. Clearing browser storage or changing the server origin/port can remove or hide that draft. Explicit JSON saving is recommended for important projects. Photos are excluded; landmark coordinates and figure names can still be personal information. Remove the reference photo and/or delete the draft using their separate controls.
 
-## Most useful next steps
+Sharing exports files, not hosted URLs. The self-contained HTML viewer includes figure names and geometry; recipients must open it in a WebGL-capable browser. Corporate/email policies may restrict HTML attachments. PNG/video are alternatives. WebM requires browser MediaRecorder/canvas recording support; actual playback/export behavior varies by browser. Axis buttons are aligned perspective views, not orthographic cameras.
 
-1. Expand real-input regression coverage to a consented set of full-body, seated, low-confidence and distinct multi-person photos, including three people and difficult occlusion.
-2. Refine anatomical fitting with world landmarks, ergonomic constraints and per-joint controls, then add pose-specific regression photos.
-3. Add a full local thickness/overhang analysis and more robust support/stability feedback for actual printer/material profiles.
+## Platform and operation
 
-## Observed checks
+The app, geometry, browser and launcher checks run on Linux CPU, Python 3.12 and Chromium. Native Windows execution was not tested, although compatible Python 3.12 Windows x64 wheels were verified for the core native dependencies and ONNX/tokenizers. The prepared ZIP includes built assets and does not require Node.js. First setup needs Internet access for dependencies/models; no paid API/account is required.
 
-- 32 Python API/geometry tests passed, including all six manual poses, numeric measurements, defect detection, upload bounds, stable job/export flow and STL reimport.
-- TypeScript checking and the Vite production build passed.
-- All 4 Chromium tests passed here, including real two-person upload/exclusion. The suite exercises the real WebGL editor, exact-height STL download, mobile layout/error handling, group layout/exports, transforms/undo, project reopening and meter-converted GLB.
-- Separate real-inference smoke commands passed for the official one-person sample and two-copy fixture. CPU MediaPipe emits upstream TFLite feedback/projection warnings; inference completed despite them.
-- The repeatable install script was exercised after dependencies were installed. No package-signature, checksum or TLS verification was bypassed.
+This is a local single-user app. Public multi-tenant deployment would still require authentication, isolation, quotas, upload scheduling, durable storage and hosting. No login, public gallery, payments, anonymous hosted project URL or ordering service is included.
 
-## Windows local package
+## Most useful next improvements
 
-The prepared ZIP includes frontend production assets and a double-click Windows batch launcher. It requires Python 3.12 and first-run Internet access for Python dependencies and the optional pose model; Node.js is unnecessary for the prepared ZIP. The Python bootstrap and same-process static/API server were validated on Linux. The Windows-specific batch entry and Windows dependency wheels were not executed on a native Windows machine.
+1. Build a consented regression set of distinct-person weddings/families, difficult occlusion and natural six-person photos; measure misses, duplicates and outfit/accessory accuracy.
+2. Add better per-person segmentation and fine correction controls for hands/head direction and contact gestures.
+3. Add full local thickness/overhang analysis and printer-specific build-volume guidance.
+4. Validate the installer and end-to-end flow on native Windows hardware.
