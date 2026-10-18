@@ -1,27 +1,34 @@
-LITTLE FIGURES STUDIO 2 - WINDOWS
+LITTLE FIGURES STUDIO 3 - WINDOWS
 
-1. Extract the entire ZIP. Do not run the launcher inside the ZIP.
-2. Double-click "Start Little Figures.bat".
-3. If Python 3.12 is missing, the official installer download opens.
-   Install it, then double-click the launcher again.
-4. First setup downloads dependencies and two local vision models.
-   The outfit model is about 149 MiB. Keep the launcher window open.
-5. Your browser opens when ready. Choose "Open the studio".
+UPGRADE
+Save important old projects, close the old launcher, and extract this new ZIP
+into its own folder. Do not run the launcher from inside the ZIP.
 
-No Node.js, hosting subscription, login or paid API is needed.
-Your photos are processed on this computer, not uploaded to a model provider.
+START
+1. Double-click "Start Little Figures.bat".
+2. If prompted, install Python 3.12 and reopen the launcher.
+3. Keep the launcher open while dependencies and local models download.
+   Model downloads total about 255 MiB on first setup.
+4. Your browser opens when ready. Choose "Open the studio".
 
-New: six-person scenes, reference-inspired rounded figures, automatic outfit
-suggestions, suit/dress/hat/bouquet/veil/bow-tie correction controls, shared
-inscribed pedestal, browser draft recovery, PNG/video/offline 3D sharing.
-Review automatic guesses and print checks before making a physical figure.
+MAKE YOUR GROUP
+1. Upload one clear group photo (up to six people).
+2. Review numbered detection outlines and the person count. The outlines are
+   detection indicators, not crops of the future model.
+3. If someone is missing, mark their body using "Someone is missing".
+4. Confirm everyone is included, then choose "Generate whole group".
+5. Inspect the scene, set its size and optional shared pedestal, then download.
 
-To upgrade: save any old project, close the previous launcher, extract this ZIP
-into its own folder, then run the new launcher. Old JSON projects reopen.
+Poses, broad clothing shapes, and recognized accessories come from the photo.
+There are no pose or accessory menus. Everyone is generated/exported together.
+If a person or major detail cannot be reconstructed, read the on-screen notes.
+Difficult, cropped, overlapping, or small subjects may need a clearer photo.
+This is a simplified figurine interpretation, not an exact scan.
 
-Closing the launcher stops this local app. Explicitly save important projects.
-Share exports contain models/names, never the original photo.
+No Node.js, account, hosting subscription, GPU, or paid API is required.
+Photos stay on this computer. Saved/shared files exclude the original photo.
+Explicitly save important projects; browser autosave is not a cloud backup.
+STL has no units: select millimeters in your slicer and review print supports.
 
-Windows-specific launch behavior was not tested on a native Windows machine.
-The app and launcher were tested in the available Linux environment.
-If setup fails, copy the launcher message back into the chat.
+The app and launcher are tested on Linux. Native Windows execution has not
+been tested here. If setup fails, copy the launcher error back into the chat.

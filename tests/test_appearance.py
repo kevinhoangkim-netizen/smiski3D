@@ -13,6 +13,13 @@ from backend.app import appearance, pose
 from backend.app.schemas import Appearance
 
 
+@pytest.fixture(autouse=True)
+def no_implicit_garment_model(monkeypatch):
+    # Unit tests isolate CLIP decisions; real parser inference has its own test.
+    monkeypatch.setattr(appearance.garment_parser, 'analyze_person', lambda *args:
+                        (None, {'status': 'unavailable', 'warnings': []}))
+
+
 def person(center=.5, scale=1):
     points = [dict(x=center, y=.2, z=0, visibility=1) for _ in range(33)]
     coords = {0: (0, .12), 11: (-.08, .26), 12: (.08, .26),
@@ -53,7 +60,8 @@ def test_person_crops_exclude_other_side_of_group():
     pixels[:, :300, 0] = 255
     pixels[:, 300:, 2] = 255
     crops = appearance.subject_crops(Image.fromarray(pixels), person(.22, .8))
-    assert set(crops) == {'outfit', 'hat', 'bouquet', 'veil', 'bowtie', 'bouquet-left', 'bouquet-right'}
+    assert set(crops) == {'outfit', 'upper', 'lower', 'hat', 'bouquet', 'veil', 'bowtie',
+                          'bag', 'scarf', 'glasses', 'mobility', 'object', 'bouquet-left', 'bouquet-right'}
     for crop in crops.values():
         assert crop.width > 0 and crop.height > 0
         assert np.asarray(crop)[:, :, 2].max() == 0
@@ -75,7 +83,10 @@ def test_automatic_suit_and_bouquet_follow_shared_schema(monkeypatch):
     assert Appearance(**result).outfit == 'suit'
     assert result['accessories'] == ['bouquet', 'bowtie']
     assert result['bouquet_hand'] == 'left'
-    assert detail['status'] == 'ready' and detail['confidence'] is None
+    assert detail['status'] == 'uncertain' and detail['confidence'] is None
+    assert result['garment']['upper'] == 'jacket'
+    assert result['garment']['lower'] == 'pants'
+    assert result['garment']['inferred']
 
 
 def test_classifier_failure_preserves_explicit_manual_fallback(monkeypatch):
@@ -87,6 +98,36 @@ def test_classifier_failure_preserves_explicit_manual_fallback(monkeypatch):
     result, detail = appearance.analyze_person(Image.new('RGB', (300, 600)), person())
     assert not result['accessories'] and result['outfit'] == 'none'
     assert detail['status'] == 'unavailable'
+
+
+def test_major_unsupported_mobility_aid_is_explicit_not_silently_omitted(monkeypatch):
+    class Runtime:
+        def score(self,crops):
+            return {'mobility':{'wheelchair':.38,'none':.2,'cane':.12,'other':.1}}
+    monkeypatch.setattr(appearance,'available',lambda:(True,'test'))
+    monkeypatch.setattr(appearance,'_runtime',Runtime())
+    _,detail=appearance.analyze_person(Image.new('RGB',(600,800)),person())
+    assert detail['unsupported_items']==['wheelchair']
+    assert detail['blocking']
+    assert any('would omit' in warning for warning in detail['warnings'])
+
+
+def test_ambiguous_walking_stick_does_not_block_as_confirmed_cane():
+    assert not appearance.choose_label({'cane':.3,'none':.26,'other':.24,'wheelchair':.1},'mobility')[1]
+
+
+def test_neighbor_flowers_are_not_attached_without_local_visible_hand_match(monkeypatch):
+    class Runtime:
+        def score(self,crops):
+            return {'outfit':{'suit':.36,'casual':.23,'none':.1},
+                    'bouquet':{'yes':.36,'no':.2},
+                    'bouquet-left':{'no':.4,'yes':.2},
+                    'bouquet-right':{'no':.4,'yes':.2}}
+    monkeypatch.setattr(appearance,'available',lambda:(True,'test'))
+    monkeypatch.setattr(appearance,'_runtime',Runtime())
+    result,detail=appearance.analyze_person(Image.new('RGB',(600,800)),person())
+    assert 'bouquet' not in result['accessories']
+    assert any('no bouquet was assigned' in warning for warning in detail['warnings'])
 
 
 def test_layout_preserves_order_and_relative_projected_size():

@@ -1,42 +1,43 @@
 # Limits and verification scope
 
-## Photo interpretation
+## What photo-driven means
 
-A single photograph cannot establish true height, hidden limbs, exact floor depth or unseen garment surfaces. Pose fitting preserves visible image-space gesture using stylized anatomical lengths. Relative heights/layout are estimates; portrait/landscape normalization is corrected using the saved image aspect. Older photo projects without this field use the square-image legacy default and should be reanalyzed for improved directions.
+The app estimates a complete stylized group scene from visible people and broad clothing regions. It is not an exact scan, a general-purpose image-to-3D foundation model, or a reconstruction of every garment/object. Fine fabric, lace, patterns, jewelry, hidden surfaces and accurate physical likeness are outside its capabilities. All characters share an original rounded pale green style; no official character sculpt is included.
 
-Six people is a cap, not a detection guarantee. Overlapping-window inference can still miss small/occluded people or produce duplicates in crowded scenes. Subject inclusion and corrections must be reviewed. A six-copy collage of the public MediaPipe sample demonstrates multi-person plumbing; it does not represent a diverse natural group benchmark. No identity or likeness reconstruction is promised.
+The new flow removes pose/outfit/accessory menus. It does not give the underlying vision models perfect understanding. Clothing classifications, measured lengths and accessory ownership can still be wrong, even on clear photos. Notes must remain visible; matching person counts alone is insufficient validation.
 
-## Automatic clothing and accessories
+## Group detection and pose
 
-Local CLIP compares image crops with a fixed supported category set. It is not an instance-segmentation system, a garment pattern reconstructor, or a universally accurate accessory detector. Close/overlapping people can contaminate crops. Small hats/flowers/ties and transparent veils can be uncertain or missed. Unsupported garments and weak comparisons abstain rather than being called confident detections. Raw similarity is not a calibrated probability.
+Independent YOLOX body detection plus per-person MediaPipe analysis improves groups that the earlier pose-only approach reduced to one or two people. Small, faded, cropped, crowded, silhouetted, seated or overlapping subjects remain difficult. Six is a supported cap, not a detection guarantee. Review outlines and confirm the actual count; a person missed by every detector cannot automatically be marked unresolved.
 
-Supported printable forms: classic/casual/suit/wedding dress; cap/top hat/wide brim; bouquet, veil, bow tie. Other clothing requires future templates. Bouquets and veils use chunky supported geometry, not individual flower petals or cloth physics. Automatic suggestions are editable, and changing an occasion does not overwrite the detected people with arbitrary wedding outfits.
+Detected people without a usable pose remain visible as unresolved regions and block generation. Over-limit photos also block partial scenes. Marking a missing person triggers additive recovery; a failure must remain explicit rather than accepting an existing overlapping person as new evidence. Recovery is not an instruction to invent a person inside any rectangle.
 
-The roughly 149 MiB of local classifier weights are downloaded separately with checksum verification. The measured CPU process peaked around 635 MiB of memory in the small validation set. Pose/model runtime failures are explicit. If installation is blocked, pose/manual editing can continue; this does not mean automatic clothing recognition is working.
+Single-view depth, original heights, exact floor placement and hidden limbs are ambiguous. Geometry preserves estimated visible directions using canonical stylized lengths; hand contact and hugging interactions can shift. Automatic horizontal spacing separates enlarged heads without changing limb directions; it cannot preserve every contact while also changing human proportions. Back-facing shoulder order controls the face surface, but side views and inconsistent landmarks can still yield uncertain orientation. Elevated people, benches, wheelchairs and other scene supports need capabilities beyond a common ground-plane figurine arrangement.
 
-Real-image spot checks recognized a bride's wedding dress and bouquet in a hugging couple, and a suit in a separate full-body wedding photo. The partly hidden groom abstained; bouquet ownership was ambiguous in the other photo. Direct hat/bow-tie crops abstained, and a cropped three-person wedding photo yielded only one person. These are useful failure examples, not an accuracy benchmark. A six-person check used tiled copies of the pose sample rather than six distinct people.
+## Clothing and accessories
 
-## Geometry and printing
+Local SCHP semantic garment regions and CLIP cues inform simplified clothing solids. Measurements must distinguish actual skin from unknown/background; absent mask evidence must not shorten sleeves or remove clothes. Overlapping people, coats, long tops, crossed limbs and low contrast can contaminate regions. Fine cuts and unseen backs are approximated.
 
-The figures follow the supplied high-level rounded style but are original procedural sculpts. No proprietary mesh or official sculpt/packaging is used. Finite sampling/simplification can be visible at close zoom. Tiny facial marks are physical shallow recesses; dark paint-like material is only in the preview/GLB. STL has neither colors nor units. A physical glowing figure requires an appropriate material.
+Supported broad forms: shirts/jackets, pants/shorts, skirts/dresses; cap/top hat/wide brim/beanie; bouquet, veil, bow tie, bag, scarf and glasses. Props use thick printable shapes rather than detailed cloth/flower simulation. Other objects can be absent if unrecognized. Strongly recognized unsupported wheelchairs/canes block generation, but object recognition itself is fallible. Unfamiliar supported-looking objects can also be misclassified.
 
-Mesh tests do not guarantee print success. Thickness and stability are heuristics, not complete wall-thickness/overhang/load analysis. No supports, slicing, toolpaths, hollowing or drainage are generated. Inspect supports, printer build volume, resin/material behavior and orientation in a slicer. Shared base and inscription can increase total scene dimensions; no silent scale-to-printer is applied. Separate figures may intentionally export as disjoint closed solids.
+Unknown upper/lower garment categories and unavailable appearance analysis block new photo generation. Saved uncertainty remains explicitly labeled; it does not silently select a stock costume. Unknown dimensions use bounded approximations where a category is known. The app does not provide manual wardrobe overrides in the photo flow.
 
-## Local saving and sharing
+## Real-photo validation
 
-Autosave is browser-local, not a cloud backup. Clearing browser storage or changing the server origin/port can remove or hide that draft. Explicit JSON saving is recommended for important projects. Photos are excluded; landmark coordinates and figure names can still be personal information. Remove the reference photo and/or delete the draft using their separate controls.
+Local fixtures include real distinct-person families, hikers, seated beach friends, formal groups, accessibility aids, silhouettes, damaged photos and over-limit groups, with source/license provenance and visual expectations in ignored .local/group-validation-v3. Raw photos are not packaged or committed. Older tiled copies only demonstrate plumbing and are not an accuracy benchmark.
 
-Sharing exports files, not hosted URLs. The self-contained HTML viewer includes figure names and geometry; recipients must open it in a WebGL-capable browser. Corporate/email policies may restrict HTML attachments. PNG/video are alternatives. WebM requires browser MediaRecorder/canvas recording support; actual playback/export behavior varies by browser. Axis buttons are aligned perspective views, not orthographic cameras.
+Successful counts/poses and known failures must be reported separately. A six-person historical family was counted as six but initially resolved only four poses; that case is blocked. Faded/backlit/cropped groups can also remain unresolved. Visual skeleton review caught a collapsed body despite high model visibility, and clothing review caught misleading pants/skirt/sleeve estimates. These checks drive guards and disclose limits rather than supporting a universal accuracy claim.
 
-## Platform and operation
+Automated browser tests mock some analysis responses to verify UI contracts. Python tests cover integrity, decisions, geometry and API enforcement. Neither proves broad recognition accuracy. Representative real inference and exact exported STL reimport are checked separately.
 
-The app, geometry, browser and launcher checks run on Linux CPU, Python 3.12 and Chromium. Native Windows execution was not tested, although compatible Python 3.12 Windows x64 wheels were verified for the core native dependencies and ONNX/tokenizers. The prepared ZIP includes built assets and does not require Node.js. First setup needs Internet access for dependencies/models; no paid API/account is required.
+## Printing, saving and sharing
 
-This is a local single-user app. Public multi-tenant deployment would still require authentication, isolation, quotas, upload scheduling, durable storage and hosting. No login, public gallery, payments, anonymous hosted project URL or ordering service is included.
+Watertightness, winding and dimension checks do not guarantee print success. Feature thickness/stability are heuristics, not full wall-thickness/load/overhang analysis. There is no support generation, slicing, hollowing, drainage or printer-specific fit. Inspect orientation, build volume, material and supports in your slicer. STL has neither colors nor units; select millimeters. Glow requires suitable physical material.
 
-## Most useful next improvements
+Browser autosave is local to its origin, not cloud backup. Clearing storage or changing ports can hide a draft. Save important JSON files. Photos are excluded, but names, pose coordinates and measurements can still be personal information. Shared HTML/GLB contain names/geometry. HTML attachments may be restricted by email/corporate policy; PNG/video are alternatives. WebM requires browser recording support.
 
-1. Build a consented regression set of distinct-person weddings/families, difficult occlusion and natural six-person photos; measure misses, duplicates and outfit/accessory accuracy.
-2. Add better per-person segmentation and fine correction controls for hands/head direction and contact gestures.
-3. Add full local thickness/overhang analysis and printer-specific build-volume guidance.
-4. Validate the installer and end-to-end flow on native Windows hardware.
+## Platform and hosting
+
+The app, launcher, CPU models, build and browser checks run on Linux/Python 3.12/Chromium. A combined natural-photo inference pass peaked around 1.18 GiB of process memory; scene complexity and mesh caching can use more. Native Windows execution remains untested; compatible dependency wheels exist. The ZIP includes the built website and needs no Node.js. First setup downloads roughly 255 MiB of models plus dependencies; later launches reuse them. No paid API, account or GPU is required.
+
+No public website URL, gallery, login, payments or ordering service is included. Sharing creates files. Public multi-tenant hosting would need authentication, isolation, quotas, scheduling, durable storage and operational work.

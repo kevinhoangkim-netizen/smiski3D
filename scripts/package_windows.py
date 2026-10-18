@@ -30,7 +30,11 @@ def package():
         if archive.testzip() is not None:
             raise RuntimeError('Package CRC verification failed.')
         names = archive.namelist()
-        for name in ('Start Little Figures.bat','scripts/launch_local.py','frontend/dist/index.html','backend/requirements-appearance.txt','scripts/download_appearance_model.py'):
+        for name in ('Start Little Figures.bat','scripts/launch_local.py','frontend/dist/index.html',
+                     'backend/requirements-appearance.txt','scripts/download_appearance_model.py',
+                     'scripts/download_people_model.py','scripts/download_garment_model.py',
+                     'scripts/model_licenses/SCHP-MIT.txt','backend/app/people.py',
+                     'backend/app/garment_parser.py','frontend/src/PhotoReview.tsx'):
             if 'Little Figures Studio/' + name not in names:
                 raise RuntimeError(f'Missing package file: {name}')
         if any('/.local/' in name or '/.venv/' in name or '/.git/' in name or '/node_modules/' in name for name in names):

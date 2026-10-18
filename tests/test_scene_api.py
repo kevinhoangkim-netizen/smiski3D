@@ -93,9 +93,10 @@ def test_queue_full_does_not_accept_unbounded_work(monkeypatch):
 
 def test_health_tells_model_availability_honestly():
     health=client.get('/api/health').json()
-    assert health['version']=='2.0.0' and health['max_people']==6
+    assert health['version']=='3.0.0' and health['max_people']==6
     assert isinstance(health['appearance']['available'],bool)
     assert health['appearance']['model'] and health['appearance']['detail']
+    assert isinstance(health['detection']['available'],bool)
 
 
 def test_reserved_scene_identity_cannot_be_used_as_a_figure():

@@ -2,6 +2,7 @@ from collections import OrderedDict
 from io import BytesIO
 from pathlib import Path
 import logging
+import json
 import math
 import threading
 import time
@@ -9,7 +10,7 @@ import uuid
 
 import numpy as np
 import trimesh
-from fastapi import FastAPI, File, UploadFile, HTTPException, BackgroundTasks
+from fastapi import FastAPI, File, Form, UploadFile, HTTPException, BackgroundTasks
 from fastapi.responses import Response, JSONResponse
 from fastapi.concurrency import run_in_threadpool
 from fastapi.staticfiles import StaticFiles
@@ -25,7 +26,8 @@ job_lock = threading.Lock()
 work_slots = threading.BoundedSemaphore(2)
 analysis_slot = threading.Lock()
 logger = logging.getLogger(__name__)
-app = FastAPI(title='Little Figures Studio', version='2.0.0',
+APP_VERSION = '3.0.0'
+app = FastAPI(title='Little Figures Studio', version=APP_VERSION,
               description='Local original group figurines. Geometry and STL use millimeters, Z up. Photos are processed temporarily on this app server.')
 
 
@@ -69,14 +71,16 @@ def appearance_status():
         return appearance.status()
     except (ImportError, OSError):
         return dict(available=False, model='Local vision classifier',
-                    detail='Automatic clothing recognition is not installed. Pose estimation remains available; appearance can be corrected manually.')
+                    detail='Automatic clothing recognition is unavailable. Reopen the launcher to install the local vision models.')
 
 
 @app.get('/api/health')
 def health():
     ready, detail = pose.available()
-    return dict(app='little-figures-studio', version='2.0.0', status='ok',
+    detection = pose.group_status() if hasattr(pose, 'group_status') else dict(available=False, detail='Group detector is not installed.')
+    return dict(app='little-figures-studio', version=APP_VERSION, status='ok',
                 pose_available=ready, pose_detail=detail, appearance=appearance_status(),
+                detection=detection,
                 max_people=6, units='mm', up_axis='Z')
 
 
@@ -85,20 +89,33 @@ def presets():
     return dict(poses=geometry.PRESETS)
 
 
-def analyze_locked(image):
+def analyze_locked(image, regions=None):
     # Limit inference concurrency without retaining images in a job/result store.
     with analysis_slot:
-        return pose.analyze(image)
+        return pose.analyze_group(image, regions=regions)
 
 
 @app.post('/api/analyze')
-async def analyze_photo(file: UploadFile = File(...)):
+async def analyze_photo(file: UploadFile = File(...), regions: str | None = Form(default=None,max_length=4096)):
     try:
         data = await file.read(MAX_UPLOAD + 1)
     finally:
         await file.close()
     if len(data) > MAX_UPLOAD:
         fail(413, 'Photo exceeds the 10 MB limit.')
+    recovery = None
+    if regions is not None:
+        try:
+            recovery = json.loads(regions)
+            if not isinstance(recovery,list) or len(recovery)>6:
+                raise ValueError()
+            for box in recovery:
+                if not isinstance(box,list) or len(box)!=4 or not all(type(v) in (int,float) and math.isfinite(v) and 0<=v<=1 for v in box):
+                    raise ValueError()
+                if box[0]>=box[2] or box[1]>=box[3]:
+                    raise ValueError()
+        except (ValueError,TypeError):
+            fail(422,'Recovery regions must be up to six rectangles inside the original photo.')
     try:
         with Image.open(BytesIO(data)) as source:
             if source.format not in ('JPEG', 'PNG', 'WEBP'):
@@ -114,15 +131,28 @@ async def analyze_photo(file: UploadFile = File(...)):
     if not ready:
         fail(503, detail)
     try:
-        subjects = await run_in_threadpool(analyze_locked, image)
+        result = await run_in_threadpool(analyze_locked, image, recovery)
     except Exception:
         logger.exception('Pose inference failed')
-        fail(503, 'Local pose estimation failed. No image-derived pose was generated. Choose a manual preset or inspect the server log.')
-    if not subjects:
-        return dict(mode='photo', subjects=[], appearance_detection=appearance_status(),
-                    warnings=['No confident people detected. Try a clear full-body photo or explicitly choose a manual preset.'])
-    return dict(mode='photo', subjects=subjects, appearance_detection=appearance_status(),
-                warnings=['Estimates up to six visible people. Group spacing, relative height, depth, clothing and hidden limbs are approximate; review uncertain suggestions.'])
+        fail(503, 'Local photo analysis failed. No image-derived pose was generated. Reopen the launcher or inspect its error message.')
+    return dict(mode='photo', appearance_detection=appearance_status(), **result)
+
+
+def require_complete_scene(project):
+    if not project.figures:
+        fail(422,'Upload a photo and confirm everyone was detected before generating.')
+    review = project.photo_review
+    if review is not None:
+        if review.unresolved_people or review.detected_people>6:
+            fail(422,'Some people are unresolved or the six-person limit was exceeded. Review the photo before generating the group.')
+        if not review.confirmed:
+            fail(422,'Confirm that everyone in the photo is included before generating the group.')
+        if review.detected_people!=len(project.figures) or any(not f.included or f.pose!='photo' for f in project.figures):
+            fail(422,'The scene must include every detected person with their photo-derived pose.')
+        if any(f.analysis_blockers for f in project.figures):
+            fail(422,'A major object in this photo cannot be reconstructed. Review the photo analysis notes before choosing another reference.')
+        if any(f.appearance_source=='unavailable' or (f.appearance.garment.inferred and (f.appearance.garment.upper=='unknown' or f.appearance.garment.lower=='unknown')) for f in project.figures):
+            fail(422,'Clothing could not be identified for everyone. Use a clearer photo or finish installing the local vision models.')
 
 
 def scene(project):
@@ -157,11 +187,12 @@ def process_job(job_id, project):
         except Exception:
             logger.exception('Mesh generation failed')
             jobs[job_id].update(state='error', stage='Generation failed',
-                                error='Could not generate this scene safely. Review the pose/accessories, try a simpler layout, or restore defaults.')
+                                error='Could not generate the complete group safely. Review the photo analysis notes, try a clearer photo, or reduce the group size.')
 
 
 @app.post('/api/jobs', status_code=202)
 def generate_job(project: Project, background_tasks: BackgroundTasks):
+    require_complete_scene(project)
     with job_lock:
         now = time.time()
         for key in list(jobs):
@@ -191,6 +222,7 @@ def get_job(job_id: str):
 
 @app.post('/api/validate')
 def validate_project(project: Project):
+    require_complete_scene(project)
     with work_slots:
         try:
             entries = scene(project)
@@ -199,11 +231,12 @@ def validate_project(project: Project):
                         dimensions=geometry.dimensions(combined),
                         combined_report=geometry.validate(combined, project.minimum_feature_mm))
         except (ValueError, RuntimeError):
-            fail(422, 'This scene could not be validated safely. Review its layout and accessories.')
+            fail(422, 'This group could not be validated safely. Try a clearer photo or adjust the group size and pedestal.')
 
 
 @app.post('/api/export/stl')
 def export_stl(request: ExportRequest):
+    require_complete_scene(request.project)
     with work_slots:
         try:
             if request.figure_id:
@@ -222,7 +255,7 @@ def export_stl(request: ExportRequest):
             if not restored.is_watertight or not restored.is_winding_consistent or restored.volume <= 0:
                 fail(422, 'Export refused: geometry did not survive STL precision safely. Try a simpler scene.')
         except (ValueError, RuntimeError):
-            fail(422, 'This scene could not be exported safely. Review its layout and accessories.')
+            fail(422, 'This group could not be exported safely. Try a clearer photo or adjust the group size and pedestal.')
         return Response(content, media_type='model/stl', headers={
             'Content-Disposition': 'attachment; filename="little-figures-mm.stl"', 'X-Model-Units': 'mm'})
 

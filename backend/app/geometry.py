@@ -100,6 +100,13 @@ def joints(figure):
         j['head_up']=head_up
         if reliable(2,5):
             j['head_lateral']=_unit(point(5)-point(2),(1,0,0))
+        # Anatomical shoulder order reverses in an image of somebody's back.
+        # Preserve the observed limb positions while placing the face, hat visor
+        # and garment front on the opposite surface. Rotating the entire figure
+        # would mirror the photographed gesture and break group placement.
+        shoulder_direction=point(12)-point(11)
+        j['back_facing']=bool(reliable(11,12) and shoulder_direction[0]>
+                              max(np.linalg.norm(shoulder_direction)*.35,direction_threshold))
     return j
 
 
@@ -110,9 +117,51 @@ def body_frame(j):
     lateral=_unit(j['shoulder_r']-j['shoulder_l'],(1,0,0))
     if lateral[0]<0:
         lateral=-lateral
+    if j.get('back_facing',False):
+        lateral=-lateral
     lateral=_plane_axis(lateral,up)
     forward=_unit(np.cross(lateral,up),(0,-1,0))
     return hip,shoulder,up,lateral,forward
+
+
+def head_x_envelope(figure):
+    """Conservative local head interval in mm, without building a mesh.
+
+    The primitive body span is a lower bound on the final solid's height, so it
+    gives an upper bound on the head's final scale. Clothing/hats can only make
+    that scale smaller. Include the origin to contain that smaller-scale head
+    even when its photographed lean moves the head to one side of the hips.
+    """
+    j=joints(figure)
+    hip,shoulder,up,lateral,forward=body_frame(j)
+    head_up=_unit(j.get('head_up',up),up)
+    head=shoulder+head_up*18
+    head_lateral=_unit(j.get('head_lateral',lateral),lateral)
+    if head_lateral@lateral<0:
+        head_lateral=-head_lateral
+    head_lateral=_plane_axis(head_lateral,head_up)
+    head_forward=_unit(np.cross(head_lateral,head_up),forward)
+    frame=np.column_stack((lateral,forward,up))
+    head_frame=np.column_stack((head_lateral,head_forward,head_up))
+    head_extent=np.sqrt(np.sum((head_frame*np.array([18.5,17.2,19])*figure.head_size)**2,axis=1))
+    bounds=[head-head_extent,head+head_extent]
+    for center,radii in [((hip+shoulder)/2,[11.7,8.3,16]),
+                         (hip+up*7+forward*1.2,[12,9.8,12]),
+                         (shoulder-up*2,[10.7,7,5])]:
+        extent=np.sqrt(np.sum((frame*np.asarray(radii))**2,axis=1))
+        bounds.extend((center-extent,center+extent))
+    for side in ('l','r'):
+        for chain,radius in [(('shoulder','elbow','wrist'),3.7),(('hip','knee','ankle'),5.4)]:
+            for key in chain:
+                bounds.extend((j[key+'_'+side]-radius,j[key+'_'+side]+radius))
+        bounds.extend((j['ankle_'+side]+[-5.1,-7.8,-5],
+                       j['ankle_'+side]+[5.1,5,2]))
+    # Shrink the analytic span by more than a voxel to account for the sampled
+    # surface's small discretization error; leave a further 1 mm head clearance.
+    span=max(float(np.ptp(np.asarray(bounds)[:,2]))-.8,1)
+    factor=figure.height_mm/span
+    return (min(0.,float((head[0]-head_extent[0])*factor))-1,
+            max(0.,float((head[0]+head_extent[0])*factor))+1)
 
 
 def body_surface(figure, j):
@@ -210,6 +259,8 @@ def body_surface(figure, j):
     decorations=accessory_meshes(figure,j,head,up,lateral,forward)
     mesh=union_or_compose([mesh,*decorations]) if decorations else mesh
     mesh.metadata['face_features']=face_features
+    head_extent=np.sqrt(np.sum((head_frame*np.array([18.5,17.2,19])*figure.head_size)**2,axis=1))
+    mesh.metadata['head_bounds_mm']=np.stack((head-head_extent,head+head_extent)).tolist()
     return mesh
 
 
@@ -218,6 +269,7 @@ def _generate(serialized):
     figure=Figure.model_validate_json(serialized)
     mesh=body_surface(figure,joints(figure))
     face_features=mesh.metadata.pop('face_features',[])
+    head_bounds=np.asarray(mesh.metadata.pop('head_bounds_mm'),float)
     vertical_shift=-mesh.bounds[0,2]
     mesh.apply_translation([0,0,vertical_shift])
     if figure.base.shape!='none':
@@ -235,12 +287,25 @@ def _generate(serialized):
         mesh=union_or_compose([mesh,base])
     factor=figure.height_mm/mesh.extents[2]
     mesh.apply_scale(factor)
+    mesh.metadata['head_bounds_mm']=((head_bounds+[0,0,vertical_shift])*factor).tolist()
     feature_size=7.0
     accessories=set(figure.appearance.accessories)
     if 'bouquet' in accessories:
         feature_size=min(feature_size,5.0)
     if 'hat' in accessories:
         feature_size=min(feature_size,5.0 if figure.appearance.hat_style=='cap' else 3.4)
+    if 'glasses' in accessories:
+        feature_size=min(feature_size,2.3)
+    if 'scarf' in accessories:
+        feature_size=min(feature_size,4.8)
+    if 'bag' in accessories:
+        feature_size=min(feature_size,4.2)
+    garment=figure.appearance.garment
+    if garment.inferred:
+        if garment.upper=='jacket':
+            feature_size=min(feature_size,3.3)
+        if garment.headwear in ('cap','brim','beanie'):
+            feature_size=min(feature_size,5.0 if garment.headwear=='cap' else 3.2)
     mesh.metadata['structural_diameter_mm']=feature_size*factor
     mesh.remove_unreferenced_vertices()
     # Material labels highlight only the physically recessed facial surfaces.
@@ -267,12 +332,18 @@ def generate(figure: Figure, transformed=True):
     mesh=_generate(raw.model_dump_json()).copy()
     size_factor=figure.height_mm/90
     mesh.apply_scale(size_factor)
+    head_bounds=np.asarray(mesh.metadata['head_bounds_mm'])*size_factor
     mesh.metadata['structural_diameter_mm']*=size_factor
     if transformed:
         t=figure.transform
         mesh.apply_scale(t.scale)
         mesh.apply_transform(trimesh.transformations.rotation_matrix(math.radians(t.rotation),[0,0,1]))
         mesh.apply_translation([t.x,t.y,0])
+        corners=trimesh.bounds.corners(head_bounds)*t.scale
+        matrix=trimesh.transformations.rotation_matrix(math.radians(t.rotation),[0,0,1])
+        corners=trimesh.transform_points(corners,matrix)+[t.x,t.y,0]
+        head_bounds=np.stack((corners.min(axis=0),corners.max(axis=0)))
+    mesh.metadata['head_bounds_mm']=head_bounds.tolist()
     return mesh
 
 
@@ -288,6 +359,8 @@ def project_meshes(project: Project):
         mesh=generate(actual)
         if shared and shared.shape!='none':
             mesh.apply_translation([0,0,shared.thickness_mm-.5])
+            mesh.metadata['head_bounds_mm']=(np.asarray(mesh.metadata['head_bounds_mm'])+
+                [0,0,shared.thickness_mm-.5]).tolist()
         pairs.append((figure,mesh))
     return pairs
 

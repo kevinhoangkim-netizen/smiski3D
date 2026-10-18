@@ -25,7 +25,7 @@ def is_our_app(port):
     try:
         with HEALTH.open(f'http://127.0.0.1:{port}/api/health',timeout=2) as response:
             body=json.load(response)
-            return body.get('app')=='little-figures-studio' and body.get('version')=='2.0.0'
+            return body.get('app')=='little-figures-studio' and body.get('version')=='3.0.0'
     except Exception:
         return False
 
@@ -63,14 +63,23 @@ def prepare(skip_install=False):
         try:
             run([PYTHON,'scripts/download_model.py'])
         except subprocess.CalledProcessError:
-            print('Photo model download failed. You can still use all manual poses; retry when online.',flush=True)
+            print('Pose model download failed. Photo generation needs this model; reopen the launcher when online to retry.',flush=True)
 
     if not (LOCAL/'appearance/manifest.json').is_file():
         print('Downloading the local outfit/accessory model. This can take a few minutes...',flush=True)
         try:
             run([PYTHON,'scripts/download_appearance_model.py'])
         except subprocess.CalledProcessError:
-            print('Outfit model download failed. Pose/manual styling still works; reopen the launcher when online to retry.',flush=True)
+            print('Outfit model download failed. Photo appearance analysis is incomplete; reopen the launcher when online to retry.',flush=True)
+
+
+    for script, description in [('download_people_model.py','group person detector'),('download_garment_model.py','clothing coverage model')]:
+        print(f'Preparing the local {description}...',flush=True)
+        try:
+            run([PYTHON,'scripts/'+script])
+        except subprocess.CalledProcessError:
+            print(f'The {description} could not be installed. Photo generation will report the missing model; reopen the launcher when online to retry.',flush=True)
+
 
 def main():
     parser=argparse.ArgumentParser()

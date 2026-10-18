@@ -28,7 +28,7 @@ def test_styled_poses_export_as_one_watertight_printable_solid(pose, outfit, acc
     assert restored.extents[2] == pytest.approx(figure.height_mm, abs=.01)
 
 
-@pytest.mark.parametrize('style', ['cap', 'top-hat', 'wide-brim'])
+@pytest.mark.parametrize('style', ['cap', 'top-hat', 'wide-brim', 'beanie'])
 def test_each_hat_is_a_real_connected_addition(style):
     figure = Figure(id='hat', appearance={'accessories': ['hat'], 'hat_style': style})
     bare = generate(Figure(id='bare'), transformed=False)

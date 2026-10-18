@@ -23,11 +23,22 @@ class Base(StrictModel):
     margin_mm: float = Field(default=5, ge=2, le=30)
     thickness_mm: float = Field(default=3, ge=1, le=15)
 
+class Garment(StrictModel):
+    upper: Literal['unknown','bare','shirt','jacket','dress'] = 'unknown'
+    lower: Literal['unknown','bare','pants','shorts','skirt','dress'] = 'unknown'
+    sleeve_length: float = Field(default=.5,ge=0,le=1)
+    hem_length: float = Field(default=.25,ge=0,le=1)
+    skirt_flare: float = Field(default=.35,ge=0,le=1)
+    trouser_length: float = Field(default=1,ge=0,le=1)
+    headwear: Literal['none','cap','brim','beanie','unknown'] = 'none'
+    inferred: bool = False
+
 class Appearance(StrictModel):
     outfit: Literal['none','casual','suit','wedding-dress'] = 'none'
-    accessories: list[Literal['hat','bouquet','veil','bowtie']] = Field(default_factory=list,max_length=4)
-    hat_style: Literal['cap','top-hat','wide-brim'] = 'top-hat'
+    accessories: list[Literal['hat','bouquet','veil','bowtie','bag','scarf','glasses']] = Field(default_factory=list,max_length=7)
+    hat_style: Literal['cap','top-hat','wide-brim','beanie'] = 'top-hat'
     bouquet_hand: Literal['left','right','both'] = 'both'
+    garment: Garment = Field(default_factory=Garment)
     @model_validator(mode='after')
     def unique_accessories(self):
         if len(self.accessories)!=len(set(self.accessories)):
@@ -56,6 +67,7 @@ class Figure(StrictModel):
     appearance_source: Literal['manual','automatic','unavailable'] = 'manual'
     appearance_confidence: float | None = Field(default=None,ge=0,le=1)
     analysis_warnings: list[str] = Field(default_factory=list,max_length=20)
+    analysis_blockers: list[str] = Field(default_factory=list,max_length=10)
     @model_validator(mode='after')
     def photo_needs_pose(self):
         if self.id == '__group_base__':
@@ -64,11 +76,19 @@ class Figure(StrictModel):
             raise ValueError('Photo pose requires 33 estimated landmarks. Choose a manual preset otherwise.')
         if any(len(w)>500 for w in self.analysis_warnings):
             raise ValueError('Analysis warnings must be at most 500 characters.')
+        if any(len(w)>500 for w in self.analysis_blockers):
+            raise ValueError('Analysis blockers must be at most 500 characters.')
         return self
+
+class PhotoReview(StrictModel):
+    detected_people: int = Field(ge=0,le=100)
+    unresolved_people: int = Field(default=0,ge=0,le=100)
+    confirmed: bool = False
 
 class Project(StrictModel):
     version: Literal[1] = 1
-    figures: list[Figure] = Field(min_length=1, max_length=6)
+    figures: list[Figure] = Field(min_length=0, max_length=6)
+    photo_review: PhotoReview | None = None
     profile: Literal['resin', 'fdm'] = 'resin'
     minimum_feature_mm: float = Field(default=1.2, ge=.2, le=10)
     shared_base: SharedBase = Field(default_factory=SharedBase)
@@ -77,7 +97,7 @@ class Project(StrictModel):
     def unique_ids(self):
         if len({f.id for f in self.figures}) != len(self.figures):
             raise ValueError('Figure IDs must be unique.')
-        if not any(f.included for f in self.figures):
+        if self.figures and not any(f.included for f in self.figures):
             raise ValueError('Include at least one figure.')
         return self
 

@@ -58,19 +58,20 @@ def test_missing_model_is_explicit_not_fabricated(monkeypatch,tmp_path):
     monkeypatch.setattr(pose,'MODEL_PATH',tmp_path/'missing.task')
     r=client.post('/api/analyze',files={'file':('valid.png',image_bytes(),'image/png')})
     assert r.status_code==503
-    assert 'manual' in r.json()['detail'].lower()
+    assert 'launcher' in r.json()['detail'].lower()
 
 def test_no_detection_is_explicit(monkeypatch):
     monkeypatch.setattr(pose,'available',lambda:(True,'test'))
-    monkeypatch.setattr(pose,'analyze',lambda image:[])
+    monkeypatch.setattr(pose,'analyze_group',lambda image,regions=None:dict(subjects=[],detected_people=0,unresolved_regions=[],warnings=['No people could be identified.'],overflow=False))
     r=client.post('/api/analyze',files={'file':('blank.png',image_bytes(),'image/png')})
     assert r.status_code==200 and r.json()['subjects']==[]
-    assert 'No confident' in r.json()['warnings'][0]
+    assert 'No people' in r.json()['warnings'][0]
+    assert r.json()['detected_people']==0
 
 def test_runtime_failure_is_explicit(monkeypatch):
     monkeypatch.setattr(pose,'available',lambda:(True,'test'))
-    def broken(image): raise RuntimeError('failure')
-    monkeypatch.setattr(pose,'analyze',broken)
+    def broken(image,regions=None): raise RuntimeError('failure')
+    monkeypatch.setattr(pose,'analyze_group',broken)
     r=client.post('/api/analyze',files={'file':('blank.png',image_bytes(),'image/png')})
     assert r.status_code==503
     assert 'No image-derived pose' in r.json()['detail']

@@ -133,3 +133,30 @@ def test_shared_base_disabled_keeps_separate_figure_export_components():
     scene=project_scene(project)
     assert len(scene)==2
     assert_printable_round_trip(union_or_compose([item[2] for item in scene]),components=2)
+
+
+def test_back_facing_photo_keeps_image_space_limbs_and_reverses_face_surface():
+    """Back-facing groups must not receive front-facing faces by default."""
+    from backend.app.geometry import body_frame, joints
+    points=[dict(x=.5,y=.1,z=0,visibility=1) for _ in range(33)]
+    positions={11:(.38,.3),12:(.62,.3),13:(.3,.44),14:(.7,.44),15:(.2,.6),16:(.8,.6),
+               23:(.43,.55),24:(.57,.55),25:(.42,.72),26:(.58,.72),27:(.4,.9),28:(.6,.9),
+               2:(.46,.13),5:(.54,.13)}
+    for index,(x,y) in positions.items():points[index].update(x=x,y=y)
+    back=Figure(id='back-facing',pose='photo',landmarks=points,base={'shape':'none'})
+    back_j=joints(back)
+    assert back_j['back_facing']
+    assert body_frame(back_j)[-1][1] > .9
+    assert back_j['wrist_l'][0] < back_j['wrist_r'][0]
+    front_points=[dict(p) for p in points]
+    for a,b in [(11,12),(13,14),(15,16),(23,24),(25,26),(27,28),(2,5)]:
+        front_points[a],front_points[b]=front_points[b],front_points[a]
+    front=Figure(id='front-facing',pose='photo',landmarks=front_points,base={'shape':'none'})
+    assert not joints(front)['back_facing']
+    assert body_frame(joints(front))[-1][1] < -.9
+    for figure,expected_sign in [(back,1),(front,-1)]:
+        mesh=generate(figure,False)
+        face=np.asarray(mesh.metadata['face_groups'])==1
+        assert face.any()
+        assert np.mean(mesh.triangles_center[face,1])*expected_sign > 5
+        assert mesh.is_watertight and mesh.volume>0

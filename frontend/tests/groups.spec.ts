@@ -1,72 +1,57 @@
 import { test, expect } from '@playwright/test';
+import { photoFile, photoResponse, projectFile, uploadGroup } from './helpers';
 
-const ready=(page:any)=>expect(page.getByRole('button',{name:'Download STL',exact:true})).toBeEnabled({timeout:45000});
-
-test('six-person scene keeps styling per person and browser draft can be restored and deleted',async({page})=>{
- await page.goto('/');await ready(page);
- await page.getByLabel('Outfit for Little figure 1').selectOption('suit');
- await page.getByRole('checkbox',{name:'Bow tie',exact:true}).check();
- await page.waitForFunction(()=>JSON.parse(localStorage.getItem('little-figures-studio:draft:v2')||'null')?.project.figures[0].appearance.outfit==='suit');
- await page.reload();await ready(page);
- await expect(page.getByLabel('Outfit for Little figure 1')).toHaveValue('suit');
- await expect(page.getByRole('checkbox',{name:'Bow tie',exact:true})).toBeChecked();
- await expect(page.getByText('Your last local draft is restored. Photos are not saved.')).toBeVisible();
- await page.getByRole('button',{name:'Add a little figure'}).click();
- await expect(page.getByLabel('Outfit for Little figure 2')).toHaveValue('none');
- await page.getByLabel('Outfit for Little figure 2').selectOption('wedding-dress');
- await page.getByRole('checkbox',{name:'Bouquet',exact:true}).check();
- await expect(page.getByLabel('Bouquet placement')).toHaveValue('both');
- await page.getByLabel('Bouquet placement').selectOption('left');
- for(let i=0;i<4;i++)await page.getByRole('button',{name:'Add a little figure'}).click();
- await expect(page.getByRole('button',{name:'Add a little figure'})).toBeDisabled();
- await expect(page.getByRole('checkbox',{name:/^Include /})).toHaveCount(6);
- await page.getByRole('button',{name:'Little figure 1 Manual preset'}).click();
- await expect(page.getByLabel('Outfit for Little figure 1')).toHaveValue('suit');
- await page.getByRole('button',{name:'Little figure 2 Manual preset'}).click();
- await expect(page.getByLabel('Outfit for Little figure 2')).toHaveValue('wedding-dress');
- await expect(page.getByLabel('Bouquet placement')).toHaveValue('left');
- await page.getByLabel('What are we celebrating?').selectOption('wedding');
- await expect(page.getByLabel('Group pedestal',{exact:true})).toHaveValue('rectangle');
- await expect(page.getByLabel('Names, a date, a little message')).toHaveValue('Better together');
- await page.getByLabel('Names, a date, a little message').fill('Kim & Alex 10.18.2026');
- await page.getByLabel('What are we celebrating?').selectOption('family');
- await expect(page.getByLabel('Names, a date, a little message')).toHaveValue('Kim & Alex 10.18.2026');
- await page.waitForFunction(()=>JSON.parse(localStorage.getItem('little-figures-studio:draft:v2')||'null')?.project.figures.length===6&&JSON.parse(localStorage.getItem('little-figures-studio:draft:v2')||'null')?.project.shared_base.inscription==='Kim & Alex 10.18.2026');
- const draft=await page.evaluate(()=>JSON.parse(localStorage.getItem('little-figures-studio:draft:v2')!));
- expect(draft.project.shared_base.inscription).toBe('Kim & Alex 10.18.2026');
- expect(JSON.stringify(draft)).not.toContain('blob:');
- await page.getByRole('button',{name:'Delete saved draft'}).click();
- await expect.poll(()=>page.evaluate(()=>localStorage.getItem('little-figures-studio:draft:v2'))).toBeNull();
- await page.waitForTimeout(800);
- expect(await page.evaluate(()=>localStorage.getItem('little-figures-studio:draft:v2'))).toBeNull();
- await expect(page.getByRole('checkbox',{name:/^Include /})).toHaveCount(6);
+test('missing-person recovery submits the same photo and additive normalized region, retaining the group',async({page})=>{
+ const requests:{body:string;contentType:string}[]=[];await page.route('**/api/analyze',route=>{requests.push({body:route.request().postDataBuffer()!.toString('latin1'),contentType:route.request().headers()['content-type']});return route.fulfill({json:photoResponse(requests.length===1?1:2)})});
+ await page.goto('/');await page.locator('input[type=file][accept="image/jpeg,image/png,image/webp"]').setInputFiles(photoFile);await expect(page.getByText('1 person found',{exact:true})).toBeVisible();await page.getByRole('checkbox',{name:/Everyone in the photo is included/}).check();
+ await page.getByRole('button',{name:'Someone is missing',exact:true}).click();const image=page.getByRole('application',{name:'Draw a box around the missing person'}),box=(await image.boundingBox())!;await page.mouse.move(box.x+box.width*.52,box.y+box.height*.08);await page.mouse.down();await page.mouse.move(box.x+box.width*.95,box.y+box.height*.94,{steps:6});await page.mouse.up();
+ await expect(page.getByText('2 people found',{exact:true})).toBeVisible();await expect(page.locator('.subject-list .subject')).toHaveCount(2);await expect(page.locator('.detection-box')).toHaveCount(2);await expect(page.getByRole('checkbox',{name:/Everyone in the photo is included/})).not.toBeChecked();
+ expect(requests).toHaveLength(2);expect(requests[1].body).toContain('name="regions"');expect(requests[1].body).toContain(photoFile.name);const raw=requests[1].body.match(/name="regions"\r\n\r\n([^\r]+)/)![1],regions=JSON.parse(raw);expect(regions).toHaveLength(1);expect(regions[0][0]).toBeCloseTo(.52,1);expect(regions[0][3]).toBeCloseTo(.94,1);expect(requests[1].contentType).toContain('multipart/form-data');
+ await page.getByRole('button',{name:'Someone is missing',exact:true}).click();const b=(await image.boundingBox())!;await page.mouse.move(b.x+b.width*.1,b.y+b.height*.2);await page.mouse.down();await page.mouse.move(b.x+b.width*.3,b.y+b.height*.8,{steps:4});await page.mouse.up();await expect.poll(()=>requests.length).toBe(3);const more=JSON.parse(requests[2].body.match(/name="regions"\r\n\r\n([^\r]+)/)![1]);expect(more).toHaveLength(2);
 });
 
-test('automatic photo suggestions, relative arrangement, comparison and photo removal',async({page,request})=>{
- const defaults=await (await request.post('/api/project/check',{data:{version:1,figures:[{id:'fixture',pose:'standing'}]}})).json();
- // This fixture tests the UI/API contract; real classifier accuracy is tested separately.
- const landmarks=Array.from({length:33},()=>({x:.5,y:.5,z:0,visibility:1}));
- const appearance={outfit:'suit',accessories:['hat'],hat_style:'top-hat',bouquet_hand:'both'};
- await page.route('**/api/analyze',route=>route.fulfill({json:{subjects:[{id:'photo-a',name:'Person 1',landmarks,bbox:[.1,.1,.4,.9],photo_aspect:1.5,confidence:.9,warnings:[],appearance,appearance_detection:{status:'ready',model:'UI contract fixture',confidence:null,warnings:[]},suggested_transform:{x:-35,y:0,scale:1},suggested_height_mm:90},{id:'photo-b',name:'Person 2',landmarks,bbox:[.6,.2,.9,.9],photo_aspect:1.5,confidence:.9,warnings:[],appearance:{...appearance,outfit:'wedding-dress',accessories:['bouquet','veil']},appearance_detection:{status:'uncertain',model:'UI contract fixture',confidence:null,warnings:['Review the partially hidden bouquet.']},suggested_transform:{x:35,y:2,scale:1},suggested_height_mm:78}],warnings:['Depth is estimated.']}}));
- await page.goto('/');await ready(page);
- await page.getByRole('button',{name:'From a photo'}).click();
- const tinyPng=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j7X0AAAAASUVORK5CYII=','base64');
- await page.locator('input[type=file][accept="image/jpeg,image/png,image/webp"]').setInputFiles({name:'private-wedding.png',mimeType:'image/png',buffer:tinyPng});
- await expect(page.getByRole('checkbox',{name:'Include Person 2'})).toBeChecked();
- await expect(page.getByLabel('Outfit for Person 1')).toHaveValue('suit');
- await expect(page.getByRole('checkbox',{name:'Hat',exact:true})).toBeChecked();
- await expect(page.getByRole('img',{name:'Original photo for before and after comparison'})).toBeVisible();
- await page.getByRole('button',{name:'Person 2 Estimated photo pose'}).click();
- await expect(page.getByLabel('Target overall height')).toHaveValue('78');
- await expect(page.getByLabel('X position')).toHaveValue('35');
- await expect(page.getByLabel('Outfit for Person 2')).toHaveValue('wedding-dress');
- await page.getByRole('checkbox',{name:'Bouquet',exact:true}).uncheck();
- await expect(page.getByText('Your styling',{exact:true})).toBeVisible();
- await page.getByRole('button',{name:'Remove reference photo'}).click();
- await expect(page.getByRole('img',{name:'Original photo for before and after comparison'})).toHaveCount(0);
- await expect(page.getByRole('checkbox',{name:'Include Person 2'})).toBeChecked();
- await page.waitForFunction(()=>JSON.parse(localStorage.getItem('little-figures-studio:draft:v2')||'null')?.project.figures[1]?.name==='Person 2');
- const draft=await page.evaluate(()=>localStorage.getItem('little-figures-studio:draft:v2'));
- expect(JSON.parse(draft!).project.figures[1].photo_aspect).toBe(1.5);expect(draft).not.toContain('private-wedding');expect(draft).not.toContain('blob:');
- expect(defaults.figures).toHaveLength(1);
+for(const fixture of [
+ {name:'unresolved poses',response:photoResponse(1,{detected_people:2,unresolved_regions:[[.55,.1,.9,.9]]}),message:'1 person needs a clearer pose'},
+ {name:'more than six people',response:photoResponse(6,{detected_people:7,overflow:true}),message:'exceeds the current limit of 6 people'},
+ {name:'no people',response:photoResponse(0),message:'No usable people were found'},
+ {name:'unavailable detector',response:photoResponse(0,{detection:{available:false,detail:'Local person detector model unavailable.'}}),message:'Local person detector model unavailable.'},
+])test(`${fixture.name} blocks generation without quietly dropping people`,async({page})=>{
+ await page.route('**/api/analyze',route=>route.fulfill({json:fixture.response}));await page.goto('/');await page.locator('input[type=file][accept="image/jpeg,image/png,image/webp"]').setInputFiles(photoFile);await expect(page.getByText(fixture.message,{exact:false})).toBeVisible();await expect(page.getByRole('checkbox',{name:/Everyone in the photo is included/})).toBeDisabled();await expect(page.getByRole('button',{name:'Generate whole group',exact:true})).toBeDisabled();await expect(page.getByRole('button',{name:'Download group STL',exact:true})).toBeDisabled();
+});
+
+test('group size scales both people and spacing equally; draft excludes photo and can be deleted',async({page})=>{
+ await uploadGroup(page);await page.getByRole('checkbox',{name:/Everyone in the photo is included/}).check();await page.getByLabel('Tallest figure height',{exact:true}).fill('120');await page.getByLabel('Group pedestal',{exact:true}).selectOption('rectangle');await page.getByLabel('Names, a date, a little message').fill('Together 2026');
+ await page.waitForFunction(()=>JSON.parse(localStorage.getItem('little-figures-studio:draft:v3')||'null')?.project.shared_base.inscription==='Together 2026');const raw=(await page.evaluate(()=>localStorage.getItem('little-figures-studio:draft:v3')))!;const saved=JSON.parse(raw).project;expect(saved.figures[0].height_mm).toBeCloseTo(120);expect(saved.figures[1].height_mm).toBeCloseTo(104);expect(saved.figures[0].transform.x).toBeCloseTo(-34*120/90);expect(saved.figures[1].transform.x).toBeCloseTo(34*120/90);expect(raw).not.toContain(photoFile.name);expect(raw).not.toContain('blob:');
+ await page.reload();await expect(page.getByText('2 people in saved group',{exact:true})).toBeVisible();await expect(page.getByLabel('Tallest figure height',{exact:true})).toHaveValue('120');await expect(page.getByRole('img',{name:'Uploaded group photo with numbered detection outlines'})).toHaveCount(0);await expect(page.getByRole('button',{name:'Generate whole group',exact:true})).toBeEnabled();
+ await page.getByRole('button',{name:'Delete saved draft',exact:true}).click();await page.waitForTimeout(900);expect(await page.evaluate(()=>localStorage.getItem('little-figures-studio:draft:v3'))).toBeNull();await expect(page.locator('.subject-list .subject')).toHaveCount(2);
+});
+
+test('legacy projects remain viewable with an explicit label and no manual pose or accessory editors',async({page})=>{
+ await page.goto('/');await page.locator('input[type=file][accept=".json,application/json"]').setInputFiles(projectFile('Legacy keepsake',95));await expect(page.locator('.legacy-banner')).toContainText('saved preset figures, not an automatic photo reconstruction');await expect(page.getByRole('button',{name:'Download group STL',exact:true})).toBeEnabled({timeout:60000});await expect(page.getByRole('button',{name:'Legacy keepsake Saved legacy pose'})).toBeVisible();await expect(page.getByLabel('Outfit for Legacy keepsake')).toHaveCount(0);await expect(page.getByLabel('Pose',{exact:true})).toHaveCount(0);
+});
+
+for(const fixture of [
+ {name:'unavailable appearance analysis',modify:(r:ReturnType<typeof photoResponse>)=>{r.subjects[1].appearance_detection.status='unavailable';return r}},
+ {name:'partly unclear clothing',modify:(r:ReturnType<typeof photoResponse>)=>{r.subjects[1].appearance.garment.lower='unknown';return r}},
+ {name:'wholly unclear clothing',modify:(r:ReturnType<typeof photoResponse>)=>{r.subjects[1].appearance.garment.upper='unknown';r.subjects[1].appearance.garment.lower='unknown';return r}},
+])test(`${fixture.name} blocks generation instead of producing an unclothed substitute`,async({page})=>{
+ await page.route('**/api/analyze',route=>route.fulfill({json:fixture.modify(photoResponse())}));await page.goto('/');await page.locator('input[type=file][accept="image/jpeg,image/png,image/webp"]').setInputFiles(photoFile);await expect(page.getByText('2 people found',{exact:true})).toBeVisible();await page.getByRole('checkbox',{name:/Everyone in the photo is included/}).check();await expect(page.getByText('Clothing could not be identified for everyone.',{exact:false})).toBeVisible();await expect(page.getByRole('button',{name:'Generate whole group',exact:true})).toBeDisabled();
+});
+
+test('saved partial clothing keeps its uncertainty visible without access to the source photo',async({page})=>{
+ const response=photoResponse();response.subjects[0].appearance.garment.lower='unknown';await page.route('**/api/analyze',route=>route.fulfill({json:response}));await page.goto('/');await page.locator('input[type=file][accept="image/jpeg,image/png,image/webp"]').setInputFiles(photoFile);await expect(page.getByText('Some clothing is unclear in this photo.',{exact:false})).toBeVisible();await page.waitForFunction(()=>JSON.parse(localStorage.getItem('little-figures-studio:draft:v3')||'null')?.project.figures.length===2);await page.reload();await expect(page.getByText('Jacket · Lower clothing unclear · hat',{exact:true})).toBeVisible();await expect(page.getByText('Some clothing is unclear in this photo.',{exact:false})).toBeVisible();
+});
+
+test('a failed missing-person retry remains blocked and can retry without accumulating a failed region',async({page})=>{
+ const bodies:string[]=[];await page.route('**/api/analyze',route=>{bodies.push(route.request().postDataBuffer()!.toString('latin1'));return bodies.length===2?route.fulfill({status:503,json:{detail:'Detection temporarily unavailable.'}}):route.fulfill({json:photoResponse(bodies.length===1?1:2)})});await page.goto('/');await page.locator('input[type=file][accept="image/jpeg,image/png,image/webp"]').setInputFiles(photoFile);await expect(page.getByText('1 person found',{exact:true})).toBeVisible();
+ async function mark(){await page.getByRole('button',{name:'Someone is missing',exact:true}).click();const b=(await page.getByRole('application',{name:'Draw a box around the missing person'}).boundingBox())!;await page.mouse.move(b.x+b.width*.52,b.y+b.height*.1);await page.mouse.down();await page.mouse.move(b.x+b.width*.95,b.y+b.height*.92,{steps:4});await page.mouse.up()}
+ await mark();await expect(page.getByRole('alert')).toContainText('Detection temporarily unavailable.');await expect(page.getByRole('checkbox',{name:/Everyone in the photo is included/})).toBeDisabled();await expect(page.getByRole('button',{name:'Generate whole group',exact:true})).toBeDisabled();await mark();await expect(page.getByText('2 people found',{exact:true})).toBeVisible();const regions=JSON.parse(bodies[2].match(/name="regions"\r\n\r\n([^\r]+)/)![1]);expect(regions).toHaveLength(1);
+});
+
+test('legacy exclusion settings remain viewable without marking the saved group as incomplete',async({page})=>{
+ const saved={version:1,figures:[{id:'legacy-included',name:'Saved included person',pose:'standing',height_mm:90,included:true},{id:'legacy-excluded',name:'Saved excluded person',pose:'seated',height_mm:90,included:false,transform:{x:90}}]};await page.goto('/');await page.locator('input[type=file][accept=".json,application/json"]').setInputFiles({name:'legacy-exclusions.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(saved))});await expect(page.getByRole('button',{name:'Download group STL',exact:true})).toBeEnabled({timeout:60000});await expect(page.getByRole('button',{name:'Saved included person Saved legacy pose'})).toBeVisible();await expect(page.getByRole('button',{name:'Saved excluded person Saved legacy pose'})).toHaveCount(0);await expect(page.getByRole('alert')).toHaveCount(0);
+});
+
+test('a confidently detected unsupported mobility aid blocks generation rather than dropping the aid',async({page})=>{
+ const response=photoResponse();response.subjects[1].appearance_detection={...response.subjects[1].appearance_detection,blocking:true,unsupported_items:['wheelchair'],summary:'Long dress · wheelchair requires reconstruction support'} as typeof response.subjects[1]['appearance_detection'];await page.route('**/api/analyze',route=>route.fulfill({json:response}));await page.goto('/');await page.locator('input[type=file][accept="image/jpeg,image/png,image/webp"]').setInputFiles(photoFile);await expect(page.getByText('2 people found',{exact:true})).toBeVisible();await page.getByRole('button',{name:'Person 2 Pose from photo'}).click();await expect(page.getByText('Cannot reconstruct wheelchair from this photo.',{exact:true})).toBeVisible();await page.getByRole('checkbox',{name:/Everyone in the photo is included/}).check();await expect(page.getByText('This photo contains an important object that this version cannot reconstruct.',{exact:false})).toBeVisible();await expect(page.getByRole('button',{name:'Generate whole group',exact:true})).toBeDisabled();await page.waitForFunction(()=>JSON.parse(localStorage.getItem('little-figures-studio:draft:v3')||'null')?.project.figures[1]?.analysis_blockers?.length===1);await page.reload();await expect(page.getByRole('button',{name:'Generate whole group',exact:true})).toBeDisabled();await page.getByRole('button',{name:'Person 2 Pose from photo'}).click();await expect(page.getByText('Cannot reconstruct wheelchair from this photo.',{exact:true})).toBeVisible();
 });
