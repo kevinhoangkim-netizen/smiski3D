@@ -18,6 +18,7 @@ import numpy as np
 from PIL import Image, ImageOps
 
 from . import garment_parser
+from .garment_estimation import compact_evidence, estimate_appearance
 
 MODEL_DIR = Path(os.environ.get('APPEARANCE_MODEL_DIR', str(Path(__file__).resolve().parents[2] / '.local/appearance')))
 MODEL_NAME = 'Local CLIP + SCHP photo clothing analysis'
@@ -322,7 +323,7 @@ def _garment_from_evidence(appearance, decisions, measurements, warnings):
             garment['lower'] = 'unknown'
             if garment['upper'] == 'dress' and upper != 'dress':
                 garment['upper'] = upper
-            warnings.append('The clothing recognizers disagree about the lower garment; its shape remains unknown.')
+            warnings.append('The clothing recognizers disagree about the lower garment; its shape will be estimated from their combined evidence.')
         # The pixel mask independently establishes clothing when the vocabulary
         # classifier cannot name a cut. It cannot distinguish shirt from jacket.
         if measurements['torso_clothes'] > .35 and garment['upper'] in ('unknown', 'bare'):
@@ -332,7 +333,7 @@ def _garment_from_evidence(appearance, decisions, measurements, warnings):
             garment['upper'] = 'bare'
         elif garment['upper'] == 'bare':
             garment['upper'] = 'unknown'
-            warnings.append('A bare torso could not be confirmed; upper clothing remains unknown.')
+            warnings.append('A bare torso could not be confirmed; a simple upper garment will be estimated.')
         for field in ('sleeve_length', 'trouser_length', 'hem_length', 'skirt_flare'):
             value = measurements.get(field)
             if value is not None:
@@ -346,9 +347,9 @@ def _garment_from_evidence(appearance, decisions, measurements, warnings):
         garment['upper'] = 'unknown'
         warnings.append('A bare torso could not be independently confirmed.')
     if garment['upper'] == 'unknown':
-        warnings.append('Upper clothing could not be read from this photo; no garment shape was invented.')
+        warnings.append('Upper clothing could not be identified confidently; a simple garment will be estimated from the available photo evidence.')
     if garment['lower'] == 'unknown':
-        warnings.append('Lower clothing could not be read from this photo; no garment shape was invented.')
+        warnings.append('Lower clothing could not be identified confidently; a simple garment will be estimated from the available photo evidence.')
     hat, accepted = decisions.get('hat', ('none', False))
     if accepted:
         garment['headwear'] = {'cap': 'cap', 'top-hat': 'brim', 'wide-brim': 'brim',
@@ -375,16 +376,19 @@ def _garment_from_evidence(appearance, decisions, measurements, warnings):
 
 def appearance_summary(appearance, measurements=None):
     garment = appearance['garment']
+    estimated = set(garment.get('estimated_fields', []))
+    def labelled(value, *fields):
+        return value + (' (estimated)' if estimated.intersection(fields) else '')
     parts = []
     if appearance['outfit'] == 'wedding-dress':
-        parts.append('Bridal dress')
+        parts.append(labelled('Bridal dress', 'upper', 'lower'))
     elif garment['upper'] == garment['lower'] == 'dress':
-        parts.append('Dress')
+        parts.append(labelled('Dress', 'upper', 'lower'))
     else:
-        parts.append({'unknown': 'Upper clothing unclear', 'bare': 'Bare torso',
-                      'shirt': 'Simplified upper garment', 'jacket': 'Jacket', 'dress': 'Dress'}[garment['upper']])
-        parts.append({'unknown': 'Lower clothing unclear', 'bare': 'Bare legs',
-                      'pants': 'Trousers', 'shorts': 'Shorts', 'skirt': 'Skirt', 'dress': 'Dress'}[garment['lower']])
+        parts.append(labelled({'unknown': 'Upper clothing unclear', 'bare': 'Bare torso',
+                      'shirt': 'Simplified upper garment', 'jacket': 'Jacket', 'dress': 'Dress'}[garment['upper']], 'upper'))
+        parts.append(labelled({'unknown': 'Lower clothing unclear', 'bare': 'Bare legs',
+                      'pants': 'Trousers', 'shorts': 'Shorts', 'skirt': 'Skirt', 'dress': 'Dress'}[garment['lower']], 'lower'))
     if garment['upper'] not in ('unknown', 'bare'):
         length = garment['sleeve_length']
         if measurements and measurements.get('sleeve_length') is not None:
@@ -462,6 +466,11 @@ def analyze_person(image, subject):
             unsupported.append(label)
             warnings.append(f'A possible {label} was detected but cannot be reconstructed by this app. The result would omit it.')
     appearance['accessories'] = list(dict.fromkeys(appearance['accessories']))
+    appearance['garment_evidence'] = compact_evidence(scores, measurements)
+    appearance = estimate_appearance(appearance)
+    estimated_fields = appearance['garment'].get('estimated_fields', [])
+    if estimated_fields:
+        warnings.append('Inferred clothing: uncertain garments were estimated from the strongest available evidence so the whole group can be generated. Compare these shapes with your photo.')
     if not ready and measurements is None:
         result_status = 'unavailable'
     else:
@@ -471,5 +480,6 @@ def analyze_person(image, subject):
     return appearance, dict(status=result_status, model=MODEL_NAME, confidence=None,
                             summary=appearance_summary(appearance, measurements), segmentation=segmentation,
                             unsupported_items=unsupported, blocking=any(item in ('wheelchair', 'cane') for item in unsupported),
+                            warning_classes=['inferred_clothing'] if estimated_fields else [],
                             warnings=list(dict.fromkeys(warnings)),
                             limitations=['Only visible clothing shapes are approximated. Hidden surfaces, fine details and unfamiliar objects may not match.'])

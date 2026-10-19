@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Annotated, Literal
 from pydantic import BaseModel, Field, ConfigDict, model_validator
 
 PoseName = Literal['standing', 'seated', 'reaching', 'leaning', 'crouching', 'arms-raised', 'photo']
@@ -32,6 +32,33 @@ class Garment(StrictModel):
     trouser_length: float = Field(default=1,ge=0,le=1)
     headwear: Literal['none','cap','brim','beanie','unknown'] = 'none'
     inferred: bool = False
+    estimated_fields: list[Literal['upper','lower','sleeve_length','hem_length','trouser_length','skirt_flare']] = Field(default_factory=list,max_length=6)
+    estimation_notes: list[str] = Field(default_factory=list,max_length=10)
+
+    @model_validator(mode='after')
+    def bounded_estimates(self):
+        if len(self.estimated_fields) != len(set(self.estimated_fields)):
+            raise ValueError('Estimated garment fields must be unique.')
+        if any(len(note)>500 for note in self.estimation_notes):
+            raise ValueError('Clothing estimation notes must be at most 500 characters.')
+        return self
+
+Score = Annotated[float, Field(ge=-1,le=1)]
+Fraction = Annotated[float, Field(ge=0,le=1)]
+
+class GarmentEvidence(StrictModel):
+    upper_scores: dict[Literal['bare','shirt','jacket','dress','other'],Score] = Field(default_factory=dict,max_length=5)
+    lower_scores: dict[Literal['bare','pants','shorts','skirt','dress','other'],Score] = Field(default_factory=dict,max_length=6)
+    upper_fractions: dict[Literal['shirt','jacket','dress'],Fraction] = Field(default_factory=dict,max_length=3)
+    lower_fractions: dict[Literal['pants','shorts','skirt','dress'],Fraction] = Field(default_factory=dict,max_length=4)
+    upper_region: Literal['bare','shirt','jacket','dress','unknown'] = 'unknown'
+    lower_region: Literal['bare','pants','shorts','skirt','dress','unknown'] = 'unknown'
+    torso_clothes: Fraction | None = None
+    torso_skin: Fraction | None = None
+    sleeve_length: Fraction | None = None
+    trouser_length: Fraction | None = None
+    hem_length: Fraction | None = None
+    skirt_flare: Fraction | None = None
 
 class Appearance(StrictModel):
     outfit: Literal['none','casual','suit','wedding-dress'] = 'none'
@@ -39,6 +66,7 @@ class Appearance(StrictModel):
     hat_style: Literal['cap','top-hat','wide-brim','beanie'] = 'top-hat'
     bouquet_hand: Literal['left','right','both'] = 'both'
     garment: Garment = Field(default_factory=Garment)
+    garment_evidence: GarmentEvidence | None = None
     @model_validator(mode='after')
     def unique_accessories(self):
         if len(self.accessories)!=len(set(self.accessories)):

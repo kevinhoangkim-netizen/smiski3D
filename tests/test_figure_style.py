@@ -30,8 +30,8 @@ def test_styled_poses_export_as_one_watertight_printable_solid(pose, outfit, acc
 
 @pytest.mark.parametrize('style', ['cap', 'top-hat', 'wide-brim', 'beanie'])
 def test_each_hat_is_a_real_connected_addition(style):
-    figure = Figure(id='hat', appearance={'accessories': ['hat'], 'hat_style': style})
-    bare = generate(Figure(id='bare'), transformed=False)
+    figure = Figure(id='hat', base={'shape':'none'}, appearance={'accessories': ['hat'], 'hat_style': style})
+    bare = generate(Figure(id='bare', base={'shape':'none'}), transformed=False)
     wearing = generate(figure, transformed=False)
     assert wearing.is_watertight and len(wearing.split()) == 1
     # Same target height means a hat changes actual geometry/proportions, not

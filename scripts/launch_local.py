@@ -3,6 +3,7 @@ import argparse
 import hashlib
 import json
 import os
+import secrets
 from pathlib import Path
 import shutil
 import socket
@@ -17,6 +18,7 @@ VENV=ROOT/'.venv'
 LOCAL=ROOT/'.local'
 PYTHON=VENV/('Scripts/python.exe' if os.name=='nt' else 'bin/python')
 HEALTH=urllib.request.build_opener(urllib.request.ProxyHandler({}))
+APP_VERSION=json.loads((ROOT/'app-version.json').read_text(encoding='utf-8'))['version']
 
 def run(command):
     subprocess.run([str(a) for a in command],cwd=ROOT,check=True)
@@ -25,7 +27,7 @@ def is_our_app(port):
     try:
         with HEALTH.open(f'http://127.0.0.1:{port}/api/health',timeout=2) as response:
             body=json.load(response)
-            return body.get('app')=='little-figures-studio' and body.get('version')=='3.0.0'
+            return body.get('app')=='little-figures-studio' and body.get('version')==APP_VERSION
     except Exception:
         return False
 
@@ -81,6 +83,46 @@ def prepare(skip_install=False):
             print(f'The {description} could not be installed. Photo generation will report the missing model; reopen the launcher when online to retry.',flush=True)
 
 
+def write_runtime(process, port, token):
+    record=dict(app='little-figures-studio',version=APP_VERSION,port=port,pid=process.pid,
+                root=str(ROOT.resolve()),update_token=token)
+    temporary=LOCAL/'runtime.json.tmp'
+    temporary.write_text(json.dumps(record),encoding='utf-8')
+    if os.name!='nt': temporary.chmod(0o600)
+    temporary.replace(LOCAL/'runtime.json')
+
+
+def clear_runtime(pid, token):
+    path=LOCAL/'runtime.json'
+    try:
+        current=json.loads(path.read_text(encoding='utf-8'))
+        if current.get('pid')==pid and current.get('update_token')==token:
+            path.unlink()
+    except (OSError,ValueError):
+        pass
+
+
+def choose_port(requested):
+    for candidate in range(requested,min(requested+20,65536)):
+        try:
+            # Check for a live listener before SO_REUSEADDR, whose Windows
+            # semantics can otherwise allow a probe alongside another server.
+            with socket.create_connection(('127.0.0.1',candidate),timeout=.2):
+                continue
+        except OSError:
+            pass
+        with socket.socket() as probe:
+            # Uvicorn also uses reuse-address. Match that behavior so TIME_WAIT
+            # after an update does not change the browser origin and hide drafts.
+            probe.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,1)
+            try:
+                probe.bind(('127.0.0.1',candidate))
+                return candidate
+            except OSError:
+                continue
+    raise RuntimeError('Could not find an available local port. Close another copy and try again.')
+
+
 def main():
     parser=argparse.ArgumentParser()
     parser.add_argument('--no-browser',action='store_true',help='For headless validation.')
@@ -94,15 +136,14 @@ def main():
         if not args.no_browser: webbrowser.open(f'http://127.0.0.1:{args.port}/welcome/')
         return
     prepare(args.skip_install)
-    port=args.port
-    for candidate in range(args.port,min(args.port+20,65536)):
-        with socket.socket() as sock:
-            try: sock.bind(('127.0.0.1',candidate));port=candidate;break
-            except OSError: continue
-    else: raise RuntimeError('Could not find an available local port. Close another copy and try again.')
+    port=choose_port(args.port)
     print('Starting your studio...',flush=True)
-    process=subprocess.Popen([str(PYTHON),'-m','uvicorn','backend.app.main:app','--host','127.0.0.1','--port',str(port)],cwd=ROOT,env=os.environ.copy())
+    token=secrets.token_urlsafe(32)
+    child_env=os.environ.copy()
+    child_env['LITTLE_FIGURES_UPDATE_TOKEN']=token
+    process=subprocess.Popen([str(PYTHON),'-m','uvicorn','backend.app.main:app','--host','127.0.0.1','--port',str(port)],cwd=ROOT,env=child_env)
     try:
+        write_runtime(process,port,token)
         for attempt in range(180):
             if process.poll() is not None:
                 raise RuntimeError('The app could not start. See the message above for the missing dependency.')
@@ -117,6 +158,7 @@ def main():
             process.terminate()
             try: process.wait(timeout=8)
             except subprocess.TimeoutExpired: process.kill();process.wait()
+        clear_runtime(process.pid,token)
 
 if __name__=='__main__':
     try:

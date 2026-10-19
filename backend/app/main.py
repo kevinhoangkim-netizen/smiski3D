@@ -4,13 +4,16 @@ from pathlib import Path
 import logging
 import json
 import math
+import os
+import secrets
+import signal
 import threading
 import time
 import uuid
 
 import numpy as np
 import trimesh
-from fastapi import FastAPI, File, Form, UploadFile, HTTPException, BackgroundTasks
+from fastapi import FastAPI, File, Form, UploadFile, HTTPException, BackgroundTasks, Request
 from fastapi.responses import Response, JSONResponse
 from fastapi.concurrency import run_in_threadpool
 from fastapi.staticfiles import StaticFiles
@@ -18,6 +21,7 @@ from PIL import Image, ImageOps, UnidentifiedImageError
 
 from .schemas import Project, ExportRequest
 from . import geometry, pose
+from .garment_estimation import estimate_appearance
 
 MAX_UPLOAD = 10 * 1024 * 1024
 Image.MAX_IMAGE_PIXELS = 20_000_000
@@ -26,7 +30,8 @@ job_lock = threading.Lock()
 work_slots = threading.BoundedSemaphore(2)
 analysis_slot = threading.Lock()
 logger = logging.getLogger(__name__)
-APP_VERSION = '3.0.0'
+APP_VERSION = '3.1.0'
+local_update_pending = threading.Event()
 app = FastAPI(title='Little Figures Studio', version=APP_VERSION,
               description='Local original group figurines. Geometry and STL use millimeters, Z up. Photos are processed temporarily on this app server.')
 
@@ -38,6 +43,8 @@ class RequestSizeLimit:
     async def __call__(self, scope, receive, send):
         if scope['type'] != 'http':
             return await self.app(scope, receive, send)
+        if local_update_pending.is_set() and scope.get('method') == 'POST' and scope.get('path') != '/api/local-update/stop':
+            return await JSONResponse({'detail': 'The app is restarting for an update.'}, status_code=503)(scope, receive, send)
         limit = MAX_UPLOAD + 65536
         length = dict(scope['headers']).get(b'content-length')
         if length is not None:
@@ -89,6 +96,29 @@ def presets():
     return dict(poses=geometry.PRESETS)
 
 
+def schedule_local_shutdown():
+    # Uvicorn handles SIGTERM by draining requests. Only this server is signalled.
+    timer = threading.Timer(.3, lambda: signal.raise_signal(signal.SIGTERM))
+    timer.daemon = True
+    timer.start()
+
+
+@app.post('/api/local-update/stop')
+def stop_for_local_update(request: Request, background_tasks: BackgroundTasks):
+    token = os.environ.get('LITTLE_FIGURES_UPDATE_TOKEN', '')
+    if not token:
+        fail(404, 'Update control is only available through the local launcher.')
+    supplied = request.headers.get('X-Local-Update-Token', '')
+    if request.client is None or request.client.host not in ('127.0.0.1', '::1') or not secrets.compare_digest(supplied, token):
+        fail(403, 'The local update token is required.')
+    with job_lock:
+        if analysis_slot.locked() or any(job['state'] not in ('ready', 'error') for job in jobs.values()):
+            fail(409, 'Wait for photo analysis or generation to finish, then update again.')
+        local_update_pending.set()
+    background_tasks.add_task(schedule_local_shutdown)
+    return dict(status='stopping', app='little-figures-studio', version=APP_VERSION)
+
+
 def analyze_locked(image, regions=None):
     # Limit inference concurrency without retaining images in a job/result store.
     with analysis_slot:
@@ -138,6 +168,22 @@ async def analyze_photo(file: UploadFile = File(...), regions: str | None = Form
     return dict(mode='photo', appearance_detection=appearance_status(), **result)
 
 
+def prepare_project(project):
+    """Resolve saved/fresh photo clothing once for preview, validation and export."""
+    data = project.model_dump()
+    for figure in data['figures']:
+        if figure['pose'] != 'photo' and figure['appearance_source'] == 'manual' and not figure['appearance']['garment']['inferred']:
+            continue
+        figure['appearance'] = estimate_appearance(figure['appearance'])
+        if figure['appearance']['garment'].get('estimated_fields'):
+            stale = ('no garment shape was invented', 'no garment shape invented',
+                     'generation is blocked until', 'clothing could not be identified for everyone')
+            warnings = [warning for warning in figure['analysis_warnings'] if not any(text in warning.lower() for text in stale)]
+            message = 'Some clothing is estimated from available evidence. Compare the simplified garments with your photo.'
+            figure['analysis_warnings'] = list(dict.fromkeys([message, *warnings]))[:20]
+    return Project.model_validate(data)
+
+
 def require_complete_scene(project):
     if not project.figures:
         fail(422,'Upload a photo and confirm everyone was detected before generating.')
@@ -151,8 +197,6 @@ def require_complete_scene(project):
             fail(422,'The scene must include every detected person with their photo-derived pose.')
         if any(f.analysis_blockers for f in project.figures):
             fail(422,'A major object in this photo cannot be reconstructed. Review the photo analysis notes before choosing another reference.')
-        if any(f.appearance_source=='unavailable' or (f.appearance.garment.inferred and (f.appearance.garment.upper=='unknown' or f.appearance.garment.lower=='unknown')) for f in project.figures):
-            fail(422,'Clothing could not be identified for everyone. Use a clearer photo or finish installing the local vision models.')
 
 
 def scene(project):
@@ -192,6 +236,7 @@ def process_job(job_id, project):
 
 @app.post('/api/jobs', status_code=202)
 def generate_job(project: Project, background_tasks: BackgroundTasks):
+    project = prepare_project(project)
     require_complete_scene(project)
     with job_lock:
         now = time.time()
@@ -222,6 +267,7 @@ def get_job(job_id: str):
 
 @app.post('/api/validate')
 def validate_project(project: Project):
+    project = prepare_project(project)
     require_complete_scene(project)
     with work_slots:
         try:
@@ -236,6 +282,7 @@ def validate_project(project: Project):
 
 @app.post('/api/export/stl')
 def export_stl(request: ExportRequest):
+    request.project = prepare_project(request.project)
     require_complete_scene(request.project)
     with work_slots:
         try:
@@ -262,7 +309,7 @@ def export_stl(request: ExportRequest):
 
 @app.post('/api/project/check', response_model=Project)
 def check_project(project: Project):
-    return project
+    return prepare_project(project)
 
 
 # Both app and landing page are served by the same loopback-only local process.

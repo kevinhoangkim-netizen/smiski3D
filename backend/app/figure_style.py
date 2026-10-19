@@ -75,13 +75,16 @@ def accessory_meshes(figure, j, head, up, lateral, forward):
         mesh.apply_translation((a + b) / 2)
         return append(mesh)
 
-    def loft(rings, sections=48, axes=frame):
+    def loft(rings, sections=64, axes=frame, pleats=0., roundness=2.):
         """Closed elliptical loft, including a solid top and bottom."""
         angles = np.arange(sections) * (2 * math.pi / sections)
         vertices = []
-        for center, rx, ry in rings:
-            vertices.extend(np.asarray(center) + np.cos(angles)[:, None] * rx * axes[:, 0]
-                            + np.sin(angles)[:, None] * ry * axes[:, 1])
+        cosine=np.sign(np.cos(angles))*abs(np.cos(angles))**(2/roundness)
+        sine=np.sign(np.sin(angles))*abs(np.sin(angles))**(2/roundness)
+        for index,(center, rx, ry) in enumerate(rings):
+            fold=pleats*(1-.8*index/max(len(rings)-1,1))*np.cos(angles*12)
+            vertices.extend(np.asarray(center) + cosine[:, None] * (rx+fold)[:,None] * axes[:, 0]
+                            + sine[:, None] * (ry+fold)[:,None] * axes[:, 1])
         faces = []
         for level in range(len(rings) - 1):
             for n in range(sections):
@@ -103,12 +106,45 @@ def accessory_meshes(figure, j, head, up, lateral, forward):
         """Cover the measured fraction of a bent limb without straightening it."""
         lengths = np.linalg.norm(np.diff(points, axis=0), axis=1)
         remaining = float(np.clip(coverage, 0, 1)) * float(sum(lengths))
+        edge=None
         for start, end, distance in zip(points[:-1], points[1:], lengths):
             if remaining <= 1e-6:
                 break
             cutoff = start + (end - start) * min(remaining / max(distance, 1e-8), 1)
             capsule(start, cutoff, radius)
+            edge=(cutoff,(end-start)/max(distance,1e-8))
             remaining -= distance
+        return edge
+
+    def cuff(edge,radius):
+        if edge is None:
+            return
+        center,direction=edge
+        axis=lateral-direction*(lateral@direction)
+        if np.linalg.norm(axis)<1e-6:
+            axis=forward-direction*(forward@direction)
+        axis/=max(np.linalg.norm(axis),1e-8)
+        axes=np.column_stack((axis,np.cross(direction,axis),direction))
+        loft([(center-direction*1.35,radius,radius),
+              (center+direction*.15,radius,radius)],axes=axes)
+
+    def front_point(height,x=0,depth=10.2):
+        return hip+up*height+lateral*x+forward*depth
+
+    def panel(points,depth=1.4):
+        """A closed, low-relief lapel with its back embedded in the coat."""
+        points=np.asarray(points)
+        vertices=np.vstack((points,points+forward*depth))
+        count=len(points)
+        faces=[]
+        for i in range(1,count-1):
+            faces.extend(((0,i+1,i),(count,count+i,count+i+1)))
+        for i in range(count):
+            k=(i+1)%count
+            faces.extend(((i,k,k+count),(i,k+count,i+count)))
+        mesh=trimesh.Trimesh(vertices=vertices,faces=faces)
+        if mesh.volume<0: mesh.invert()
+        append(mesh)
 
     garment = _value(appearance, 'garment', {})
     inferred = bool(_value(garment, 'inferred', False))
@@ -120,32 +156,57 @@ def accessory_meshes(figure, j, head, up, lateral, forward):
         # bridal gown or any other stock costume merely as a fallback.
         if upper in ('shirt', 'jacket', 'dress'):
             feature = 'upper-garment'
-            ellipsoid(hip + up * 13, [12.8, 10.4, 17], subdivisions=3)
-            # A real lower edge distinguishes a shirt/coat from a slightly
-            # inflated bare torso, even in an uncolored printable mesh.
-            loft([(hip + up * 1.5, 13.1, 10.5),
-                  (hip + up * 10, 12.8, 10.4),
-                  (shoulder - up * 2, 11.1, 8.2)])
+            shoulder_half=float(np.linalg.norm(j['shoulder_r']-j['shoulder_l'])/2)
+            chest_width=max(11.8,min(shoulder_half+2.4,19))
+            loft([(hip + up * .8, 13.1, 10.6),
+                  (hip + up * 8, 12.6, 10.4),
+                  (hip + up * 17, chest_width, 9.6),
+                  (shoulder - up * 1.4, chest_width*.94, 8.3),
+                  (shoulder + up * 1.3, 6.5, 6.4)])
+            feature='garment-hem'
+            loft([(hip+up*.5,13.65,11.1),(hip+up*2,13.65,11.1)])
             feature = 'sleeve'
             sleeve = _value(garment, 'sleeve_length', .5)
             for side in ('l', 'r'):
-                covered_chain(np.array([j[key + '_' + side]
-                                        for key in ('shoulder', 'elbow', 'wrist')]),
-                              sleeve, 4.6 if upper == 'jacket' else 4.35)
+                radius=4.6 if upper=='jacket' else 4.35
+                feature='sleeve'
+                edge=covered_chain(np.array([j[key+'_'+side] for key in ('shoulder','elbow','wrist')]),sleeve,radius)
+                feature='sleeve-cuff'
+                cuff(edge,radius+.45)
             if upper == 'jacket':
                 feature = 'jacket-lapel'
                 for sign in (-1, 1):
-                    capsule(shoulder + lateral * sign * 5 - up * 2 + forward * 8.9,
-                            hip + up * 11 + lateral * sign * 1.2 + forward * 10.1, 1.65)
+                    panel([front_point(24,sign*4,8.3),front_point(20,sign*7,9.2),
+                           front_point(12,sign*1.4,10.1),front_point(20,sign*2,9.9)])
+                feature='jacket-details'
+                capsule(front_point(2,0,10.9),front_point(12,0,10.6),.65)
+                for height in (5,9):
+                    ellipsoid(front_point(height,.8,11),[.95,.85,.95])
+                for sign in (-1,1):
+                    capsule(front_point(7,sign*5.2,10.3),front_point(8,sign*8.6,9.6),.7)
+                if outfit=='suit' and 'bowtie' not in accessories:
+                    feature='tie'
+                    panel([front_point(22,0,10.1),front_point(18,-1.2,10.7),
+                           front_point(12,0,10.8),front_point(18,1.2,10.7)],1.1)
+            else:
+                feature='neckline'
+                neck=shoulder-up*2
+                points=[neck+lateral*x+forward*(8.3+1.2*(1-(x/6)**2))-up*(3*(1-(x/6)**2)) for x in np.linspace(-6,6,9)]
+                for a,b in zip(points[:-1],points[1:]): capsule(a,b,.65)
 
         if lower in ('pants', 'shorts'):
             feature = 'trouser-waist'
             ellipsoid(hip + up * 2.8, [12.5, 10.3, 6.7], subdivisions=3)
             feature = 'trouser-leg'
             for side in ('l', 'r'):
-                covered_chain(np.array([j[key + '_' + side]
+                feature='trouser-leg'
+                edge=covered_chain(np.array([j[key + '_' + side]
                                         for key in ('hip', 'knee', 'ankle')]),
                               _value(garment, 'trouser_length', 1), 6.15)
+                feature='trouser-cuff'
+                cuff(edge,6.5)
+            feature='waistband'
+            loft([(hip+up*5.4,12.9,10.6),(hip+up*7,12.9,10.6)])
 
         if lower in ('skirt', 'dress') or upper == 'dress':
             feature = 'skirt'
@@ -188,7 +249,11 @@ def accessory_meshes(figure, j, head, up, lateral, forward):
             radii = [(11.8 + fraction * (2 + 12 * flare),
                       9.8 + fraction * (1 + 7 * flare))
                      for fraction in np.linspace(0, 1, len(centers))]
-            loft(list(reversed([(center, *radius) for center, radius in zip(centers, radii)])))
+            pleats=1.1+flare*1.4 if outfit=='wedding-dress' else .6+flare*.75
+            loft(list(reversed([(center, *radius) for center, radius in zip(centers, radii)])),sections=96,pleats=pleats)
+            feature='dress-hem'
+            rx,ry=radii[-1]
+            loft([(centers[-1],rx+.4,ry+.4),(centers[-1]+up*1.4,rx+.3,ry+.3)],sections=96,pleats=pleats)
             feature = 'waist-seam'
             ellipsoid(waist, [12.5, 10.4, 2])
 
@@ -230,7 +295,8 @@ def accessory_meshes(figure, j, head, up, lateral, forward):
     headwear = _value(garment, 'headwear', 'none') if inferred else 'none'
     if ('hat' in accessories and not inferred) or headwear in ('cap', 'brim', 'beanie'):
         feature = 'hat'
-        style = ({'cap': 'cap', 'brim': 'wide-brim', 'beanie': 'beanie'}.get(headwear)
+        brim_style='top-hat' if 'hat' in accessories and _value(appearance,'hat_style')=='top-hat' else 'wide-brim'
+        style = ({'cap': 'cap', 'brim': brim_style, 'beanie': 'beanie'}.get(headwear)
                  or _value(appearance, 'hat_style', 'top-hat'))
         if style == 'cap':
             ellipsoid(head + head_up * 13 * head_size,
@@ -254,6 +320,18 @@ def accessory_meshes(figure, j, head, up, lateral, forward):
             height = (10 if style == 'wide-brim' else 17) * head_size
             loft([(brim_center, 15 * head_size, 13.8 * head_size),
                   (brim_center + head_up * height, 12.8 * head_size, 12 * head_size)], axes=head_frame)
+        feature='hat-seam'
+        if style=='cap':
+            center=head+head_up*13*head_size
+            for angle in (-math.pi/3,0,math.pi/3):
+                radial=head_lateral*math.sin(angle)+head_forward*math.cos(angle)
+                points=[center+radial*(16*head_size*math.sin(t))+head_up*(9.2*head_size*math.cos(t))
+                        for t in np.linspace(0,1.65,8)]
+                for a,b in zip(points[:-1],points[1:]): capsule(a,b,.6*head_size)
+        elif style=='beanie':
+            for angle in np.linspace(0,2*math.pi,18,endpoint=False):
+                offset=head_lateral*17.9*head_size*math.cos(angle)+head_forward*16.9*head_size*math.sin(angle)
+                capsule(brim+offset-head_up*1.2*head_size,brim+offset+head_up*1.2*head_size,.55*head_size)
 
     if 'veil' in accessories:
         feature = 'veil'
@@ -284,17 +362,27 @@ def accessory_meshes(figure, j, head, up, lateral, forward):
         # A photo or neutral pose can place the wrists against the belly. Keep
         # the flower heads in front of the torso instead of burying the entire
         # bouquet inside it; thick stems still connect to the unchanged hands.
-        torso_front = float(((hip + shoulder) / 2) @ forward) + 14
+        torso_front = float(((hip + shoulder) / 2) @ forward) + 19
         offset = max(3, torso_front - float(anchor @ forward))
         flower_center = anchor + up * 8 + forward * offset
         stem_top = flower_center - up * 2
         for wrist in wrists:
             capsule(wrist, stem_top, 2.5)
-        ellipsoid(flower_center, [6.2, 5.6, 5.3])
-        for dx, dy, dz in [(-4.3, 0, 1), (4.3, 0, 1), (0, 3.4, 2),
-                           (-2.2, -2.8, 3), (2.2, -2.8, 3)]:
-            ellipsoid(flower_center + lateral * dx + forward * dy + up * dz,
-                      [3.5, 3.5, 3.3])
+        ellipsoid(flower_center, [7.5, 4.6, 5.9],subdivisions=3)
+        # Distinct overlapping rosettes produce real petals in STL, rather than
+        # a bunch of featureless spheres. The backing mass supports each flower.
+        feature='bouquet-petals'
+        for dx,dz in [(-4,1.5),(4,1.5),(0,4.9),(-2.5,-2.4),(2.5,-2.4)]:
+            flower=flower_center+lateral*dx+up*dz+forward*4.4
+            ellipsoid(flower,[1.1,.75,1.1])
+            for angle in np.linspace(0,2*math.pi,6,endpoint=False):
+                ellipsoid(flower+lateral*1.55*math.cos(angle)+up*1.55*math.sin(angle)+forward*.4,[1.3,1.05,1.3])
+        feature='bouquet-leaves'
+        for sign in (-1,1):
+            ellipsoid(flower_center+lateral*sign*4.5-up*4,[3.2,2.1,4])
+        feature='bouquet-ribbon'
+        ribbon=stem_top-up*3
+        for sign in (-1,1):ellipsoid(ribbon+lateral*sign*2+forward*1.5,[2.4,1.8,1.7])
 
     if 'scarf' in accessories:
         feature = 'scarf'
@@ -313,9 +401,16 @@ def accessory_meshes(figure, j, head, up, lateral, forward):
                   if hand == 'right' else [j['wrist_l'], j['wrist_r']])
         anchor = np.mean(wrists, axis=0)
         center = anchor - up * 5 + forward * 3.2
-        ellipsoid(center, [6.4, 4.4, 7.2], subdivisions=3)
+        loft([(center-up*6.5,5.3,3.2),(center-up*5.3,6.4,4.2),
+              (center+up*4.5,6.4,4.2),(center+up*6,5.8,3.7)],roundness=4)
         for wrist in wrists:
             capsule(wrist, center + up * 4, 2.1)
+        feature='bag-details'
+        capsule(center-up*.5+forward*4.2-lateral*4.5,center-up*.5+forward*4.2+lateral*4.5,.7)
+        ellipsoid(center-up*1.2+forward*4.5,[1.25,.85,1.5])
+        for sign in (-1,1):
+            capsule(center+lateral*sign*5.2-up*4+forward*3.9,
+                    center+lateral*sign*5.2+up*3+forward*3.9,.6)
 
     if 'glasses' in accessories:
         feature = 'glasses'

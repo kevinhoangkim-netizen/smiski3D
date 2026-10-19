@@ -27,9 +27,9 @@ def _plane_axis(candidate, normal):
 def joints(figure):
     """A short, rounded anatomy with image-space gesture and torso direction.
 
-    Photo landmarks supply directions, including the torso and bent knees, rather
-    than merely moving hands on an upright stock torso. Hidden joints retain a
-    documented neutral fallback; no hidden photo detail is asserted as certain.
+    Visible photo joints retain their relative image-plane distances, including
+    foreshortened limbs. Hidden joints retain a neutral fallback. Depth remains
+    a conservative estimate from one view.
     """
     j = dict(hip_l=[-7,0,31], hip_r=[7,0,31], shoulder_l=[-10,0,56], shoulder_r=[10,0,56],
              elbow_l=[-15,0,43], elbow_r=[15,0,43], wrist_l=[-14,-1,31], wrist_r=[14,-1,31],
@@ -73,9 +73,21 @@ def joints(figure):
         lateral = _unit(point(12)-point(11), (1,0,0))
         hip_lateral = _unit(point(24)-point(23), lateral)
         root=np.array([0.,0.,31.])
+        projected_torso=np.linalg.norm((shoulder_mid-hip_mid)[[0,2]])
+        mapped=bool(reliable(11,12,23,24) and projected_torso>1e-5)
+        photo_scale=25/max(projected_torso,.015)
         for side, sign in [('l',-1),('r',1)]:
             j['hip_'+side]=root+sign*hip_lateral*7
             j['shoulder_'+side]=root+torso_up*25+sign*lateral*10
+        if mapped:
+            for name,index in (('hip_l',23),('hip_r',24),('shoulder_l',11),('shoulder_r',12)):
+                center=hip_mid if name.startswith('hip') else shoulder_mid
+                offset=(point(index)-center)*photo_scale
+                # Malformed imported landmarks cannot create an unbounded grid.
+                if np.linalg.norm(offset)<=18:
+                    location=(center-hip_mid)*photo_scale+offset
+                    location[1]=np.clip(location[1],-12,12)
+                    j[name]=root+location
         mapping={'shoulder_l':11,'shoulder_r':12,'elbow_l':13,'elbow_r':14,
                  'wrist_l':15,'wrist_r':16,'hip_l':23,'hip_r':24,
                  'knee_l':25,'knee_r':26,'ankle_l':27,'ankle_r':28}
@@ -84,7 +96,12 @@ def joints(figure):
                 p,c=parent+'_'+side,child+'_'+side
                 if reliable(mapping[p],mapping[c]):
                     direction=point(mapping[c])-point(mapping[p])
-                    if np.linalg.norm(direction)>direction_threshold:
+                    if mapped and np.linalg.norm(direction)*photo_scale<=length*2.5:
+                        # A short projected forearm must remain short. Normalizing
+                        # each segment independently moves wrists away from the
+                        # photographed body and destroys crossed/held-hand poses.
+                        j[c]=j[p]+direction*photo_scale
+                    elif np.linalg.norm(direction)>direction_threshold:
                         j[c]=j[p]+_unit(direction)*length
                     else:
                         j[c]=j[p]-torso_up*length
@@ -165,7 +182,7 @@ def head_x_envelope(figure):
 
 
 def body_surface(figure, j):
-    """One smooth implicit surface: large head, belly, small feet, no nose."""
+    """One smooth implicit surface with a small, fused rounded nose."""
     from skimage.measure import marching_cubes
     hip,shoulder,up,lateral,forward=body_frame(j)
     head_up=_unit(j.get('head_up',up),up)
@@ -184,6 +201,8 @@ def body_surface(figure, j):
     ell(hip+up*7+forward*1.2,[12,9.8,12])
     ell(shoulder-up*2,[10.7,7,5])
     ell(head,[18.5*figure.head_size,17.2*figure.head_size,19*figure.head_size],head_frame)
+    ell(head+head_forward*16.9*figure.head_size-head_up*.8*figure.head_size,
+        np.array([1.5,2.5,1.9])*figure.head_size,head_frame)
     for side in ('l','r'):
         # Each limb is one rounded chain. Blending each segment separately
         # would add a visible ball at the elbow/knee even without joint spheres.
@@ -232,7 +251,7 @@ def body_surface(figure, j):
             for a,b in zip(points[1:-1],points[2:]):
                 d=np.minimum(d,capsule_field(a,b,radius))
         field=d if field is None else smooth_union(field,d)
-    # Shallow inset facial marks. There is deliberately no projecting nose.
+    # Physical eye and mouth recesses remain separate from the rounded nose.
     face_features=[]
     for eye_x in [-5.1,5.1]:
         surface_depth=17.2*figure.head_size*np.sqrt(1-(eye_x/(18.5*figure.head_size))**2-(1.5/(19*figure.head_size))**2)
@@ -251,7 +270,7 @@ def body_surface(figure, j):
     mesh=trimesh.Trimesh(vertices=vertices+low,faces=faces)
     if mesh.volume<0:
         mesh.invert()
-    from manifold3d import Manifold, Mesh
+    from manifold3d import Manifold, Mesh, OpType
     solid=Manifold(Mesh(vert_properties=np.asarray(mesh.vertices,dtype=np.float32),tri_verts=np.asarray(mesh.faces,dtype=np.uint32)))
     raw=solid.simplify(.025).to_mesh64()
     mesh=stl_precision_mesh(trimesh.Trimesh(vertices=raw.vert_properties,faces=raw.tri_verts))
@@ -273,16 +292,23 @@ def _generate(serialized):
     vertical_shift=-mesh.bounds[0,2]
     mesh.apply_translation([0,0,vertical_shift])
     if figure.base.shape!='none':
-        height=figure.base.thickness_mm
+        # Size the support in physical millimeters after the figure is scaled.
+        # Otherwise a small keepsake silently gets a very thin version of a
+        # nominally 3 mm base.
+        body_scale=(figure.height_mm-figure.base.thickness_mm)/(mesh.extents[2]-.5)
+        height=figure.base.thickness_mm/body_scale
         mesh.apply_translation([0,0,height-.5])
         vertical_shift+=height-.5
-        bounds=mesh.bounds.copy()
-        center=(bounds[0,:2]+bounds[1,:2])/2
-        size=bounds[1,:2]-bounds[0,:2]+2*figure.base.margin_mm
+        support=mesh.vertices[mesh.vertices[:,2]<mesh.bounds[0,2]+2.5/body_scale,:2]
+        footprint=np.vstack((support,mesh.center_mass[:2]))
+        low,high=footprint.min(axis=0),footprint.max(axis=0)
+        center=(low+high)/2
+        size=high-low+2*figure.base.margin_mm/body_scale
         if figure.base.shape=='round':
             base=trimesh.creation.cylinder(radius=np.linalg.norm(size/2),height=height,sections=64)
         else:
-            base=trimesh.creation.box(extents=[*size,height])
+            from .pedestal import rounded_rectangle
+            base=rounded_rectangle(size,height)
         base.apply_translation([*center,height/2])
         mesh=union_or_compose([mesh,base])
     factor=figure.height_mm/mesh.extents[2]
@@ -302,6 +328,8 @@ def _generate(serialized):
         feature_size=min(feature_size,4.2)
     garment=figure.appearance.garment
     if garment.inferred:
+        if garment.upper in ('shirt','jacket','dress') or garment.lower in ('pants','shorts','skirt','dress'):
+            feature_size=min(feature_size,1.3)
         if garment.upper=='jacket':
             feature_size=min(feature_size,3.3)
         if garment.headwear in ('cap','brim','beanie'):
@@ -326,11 +354,12 @@ def _generate(serialized):
 def generate(figure: Figure, transformed=True):
     # Geometry is reusable across people, names, analysis labels and sizes.
     # Uniform sizing happens after the cache, preserving exact target height.
+    cache_height=figure.height_mm if figure.base.shape!='none' else 90
     raw=figure.model_copy(update={'id':'geometry','name':'Figure','included':True,
-        'height_mm':90,'transform':type(figure.transform)(),
+        'height_mm':cache_height,'transform':type(figure.transform)(),
         'appearance_source':'manual','appearance_confidence':None,'analysis_warnings':[]})
     mesh=_generate(raw.model_dump_json()).copy()
-    size_factor=figure.height_mm/90
+    size_factor=figure.height_mm/cache_height
     mesh.apply_scale(size_factor)
     head_bounds=np.asarray(mesh.metadata['head_bounds_mm'])*size_factor
     mesh.metadata['structural_diameter_mm']*=size_factor
@@ -438,12 +467,10 @@ def union_or_compose(meshes):
     # STL vertex welding, which otherwise collapses tiny coplanar triangles.
     if len(meshes)==1:
         return stl_precision_mesh(meshes[0])
-    from manifold3d import Manifold, Mesh
+    from manifold3d import Manifold, Mesh, OpType
     solids=[Manifold(Mesh(vert_properties=np.asarray(m.vertices,dtype=np.float32),
                          tri_verts=np.asarray(m.faces,dtype=np.uint32))) for m in meshes]
-    result=solids[0]
-    for solid in solids[1:]:
-        result=result+solid
+    result=Manifold.batch_boolean(solids,OpType.Add)
     raw=result.set_tolerance(1e-4).simplify(1e-4).to_mesh64()
     return stl_precision_mesh(trimesh.Trimesh(vertices=raw.vert_properties,faces=raw.tri_verts))
 

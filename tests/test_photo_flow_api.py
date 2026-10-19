@@ -68,14 +68,51 @@ def test_retry_keeps_entire_photo_and_reports_unresolved_people(monkeypatch):
     assert seen==[((50,50),[[.1,.2,.8,.9]])]
     assert result.json()['detected_people']==1 and result.json()['unresolved_regions']==[[.1,.2,.8,.9]]
 
-@pytest.mark.parametrize('change',[
-    {'analysis_blockers':['Wheelchair reconstruction is unsupported.']},
-    {'appearance_source':'unavailable'},
-    {'appearance':{'garment':{'inferred':True,'upper':'unknown','lower':'unknown'}}},
-    {'appearance':{'garment':{'inferred':True,'upper':'shirt','lower':'unknown'}}},
-])
-def test_major_unknown_appearance_blocks_the_whole_photo_group(change):
-    p=photo_project();p['figures'][0].update(change)
-    for path,body in [('/api/jobs',p),('/api/export/stl',{'project':p})]:
+def test_unsupported_major_object_still_blocks_the_whole_photo_group():
+    p=photo_project();p['figures'][0]['analysis_blockers']=['Wheelchair reconstruction is unsupported.']
+    for path,body in [('/api/jobs',p),('/api/validate',p),('/api/export/stl',{'project':p})]:
         r=client.post(path,json=body)
         assert r.status_code==422,(path,r.text)
+
+
+@pytest.mark.parametrize('change',[
+    {'appearance_source':'unavailable'},
+    {'appearance':{'garment':{'inferred':True,'upper':'unknown','lower':'unknown'}}},
+    {'appearance':{'garment':{'inferred':True,'upper':'shirt','lower':'unknown','sleeve_length':1}}},
+])
+def test_old_saved_photo_clothing_is_estimated_and_all_people_generate(change):
+    p=photo_project();p['figures'][0].update(change)
+    checked=client.post('/api/project/check',json=p)
+    assert checked.status_code==200,checked.text
+    canonical=checked.json()
+    garment=canonical['figures'][0]['appearance']['garment']
+    assert garment['upper']=='shirt' and garment['lower']=='pants'
+    assert 'lower' in garment['estimated_fields'] and garment['estimation_notes']
+    assert canonical['figures'][0]['landmarks']==p['figures'][0]['landmarks']
+    assert canonical['figures'][1]['transform']['x']==90
+    response=client.post('/api/jobs',json=p)
+    assert response.status_code==202,response.text
+    result=client.get('/api/jobs/'+response.json()['id']).json()
+    assert result['state']=='ready',result
+    assert {figure['id'] for figure in result['result']['figures']}=={'p0','p1'}
+    assert client.post('/api/project/check',json=canonical).json()==canonical
+
+
+def test_estimates_survive_saved_project_and_stl_uses_the_same_clothing():
+    import numpy as np
+    import trimesh
+    p=photo_project(1)
+    p['figures'][0]['appearance']={'garment':{'inferred':True,'upper':'shirt','lower':'unknown'},
+        'garment_evidence':{'lower_fractions':{'skirt':.65,'pants':.08},'lower_region':'skirt','hem_length':.7}}
+    canonical=client.post('/api/project/check',json=p).json()
+    garment=canonical['figures'][0]['appearance']['garment']
+    assert garment['lower']=='skirt' and garment['hem_length']==.7
+    assert garment['estimated_fields'] and garment['inferred']
+    original=client.post('/api/export/stl',json={'project':p})
+    saved=client.post('/api/export/stl',json={'project':canonical})
+    assert original.status_code==saved.status_code==200,(original.text[:100],saved.text[:100])
+    a=trimesh.load(BytesIO(original.content),file_type='stl');b=trimesh.load(BytesIO(saved.content),file_type='stl')
+    assert a.is_watertight and b.is_watertight
+    np.testing.assert_allclose(a.bounds,b.bounds,atol=.0001)
+    np.testing.assert_allclose(a.volume,b.volume,atol=.0001)
+    assert client.post('/api/validate',json=p).status_code==200

@@ -126,6 +126,17 @@ def _closed_union(meshes):
     return mesh
 
 
+def rounded_rectangle(size,thickness):
+    from manifold3d import CrossSection
+    size=np.asarray(size,float)
+    radius=min(3.,float(size.min())*.16)
+    solid=CrossSection.square(size-2*radius,center=True).offset(radius,circular_segments=48).extrude(thickness)
+    raw=solid.to_mesh64()
+    mesh=trimesh.Trimesh(vertices=raw.vert_properties,faces=raw.tri_verts)
+    mesh.apply_translation([0,0,-thickness/2])
+    return mesh
+
+
 def pedestal_mesh(meshes: Iterable[trimesh.Trimesh], settings) -> trimesh.Trimesh | None:
     """Create only the shared base; caller unions it with the world-space figures.
 
@@ -162,7 +173,7 @@ def pedestal_mesh(meshes: Iterable[trimesh.Trimesh], settings) -> trimesh.Trimes
         # inside the top face, away from its circular boundary.
         base = trimesh.creation.cylinder(radius=radius, height=thickness, sections=96)
     else:
-        base = trimesh.creation.box(extents=[*size, thickness])
+        base = rounded_rectangle(size,thickness)
     base.apply_translation([*center, thickness / 2])
     primitives = [base]
     if rectangles:

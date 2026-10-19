@@ -16,11 +16,11 @@ Single-view depth, original heights, exact floor placement and hidden limbs are 
 
 ## Clothing and accessories
 
-Local SCHP semantic garment regions and CLIP cues inform simplified clothing solids. Measurements must distinguish actual skin from unknown/background; absent mask evidence must not shorten sleeves or remove clothes. Overlapping people, coats, long tops, crossed limbs and low contrast can contaminate regions. Fine cuts and unseen backs are approximated.
+Local SCHP semantic garment regions and CLIP cues inform simplified clothing solids. Measurements must distinguish actual skin from unknown/background; absent mask evidence must not shorten sleeves or remove clothes. Overlapping people, coats, long tops, crossed limbs and low contrast can contaminate regions. Hems, cuffs, lapels, folds, flower petals and accessory details are modeled solids, but fine cuts, patterns, lace and unseen backs are approximated.
 
 Supported broad forms: shirts/jackets, pants/shorts, skirts/dresses; cap/top hat/wide brim/beanie; bouquet, veil, bow tie, bag, scarf and glasses. Props use thick printable shapes rather than detailed cloth/flower simulation. Other objects can be absent if unrecognized. Strongly recognized unsupported wheelchairs/canes block generation, but object recognition itself is fallible. Unfamiliar supported-looking objects can also be misclassified.
 
-Unknown upper/lower garment categories and unavailable appearance analysis block new photo generation. Saved uncertainty remains explicitly labeled; it does not silently select a stock costume. Unknown dimensions use bounded approximations where a category is known. The app does not provide manual wardrobe overrides in the photo flow.
+Unknown upper/lower categories are estimated automatically using available local evidence, known outfit relationships and measured coverage. When evidence is unavailable, simple shirt/trouser shapes are used and explicitly labeled estimated. These choices can be wrong; the estimates are not recognition confidence. Known categories are retained. Unknown dimensions use bounded approximations. The app does not provide manual wardrobe overrides in the photo flow.
 
 ## Real-photo validation
 
@@ -41,3 +41,8 @@ Browser autosave is local to its origin, not cloud backup. Clearing storage or c
 The app, launcher, CPU models, build and browser checks run on Linux/Python 3.12/Chromium. A combined natural-photo inference pass peaked around 1.18 GiB of process memory; scene complexity and mesh caching can use more. Native Windows execution remains untested; compatible dependency wheels exist. The ZIP includes the built website and needs no Node.js. First setup downloads roughly 255 MiB of models plus dependencies; later launches reuse them. No paid API, account or GPU is required.
 
 No public website URL, gallery, login, payments or ordering service is included. Sharing creates files. Public multi-tenant hosting would need authentication, isolation, quotas, scheduling, durable storage and operational work.
+
+
+Visible joint mapping preserves image-plane proportions and foreshortening, but model landmark errors, hidden-joint fallback, stylized head enlargement and independent grounding can still differ from the original pose or group contact. Depth and elevated seating/props cannot be recovered reliably from one view.
+
+Print bases provide flat fused supports and keep selected physical thickness while resizing. Stability checks use the mass projection/contact hull only; they are not a guarantee of printability. Thin detail, overhangs, material choice, supports and slicer settings still matter. Native Windows execution has not been available for testing; updater file integrity/preservation/recovery and local shutdown are exercised in Linux tests.

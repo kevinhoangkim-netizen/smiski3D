@@ -5,6 +5,7 @@ import hashlib
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / 'downloads/Little-Figures-Studio-Windows.zip'
+UPDATER_TARGET = ROOT / 'downloads/Little-Figures-Updater.zip'
 
 
 def package():
@@ -19,7 +20,7 @@ def package():
             if path.suffix == '.tsbuildinfo':
                 continue
             files.append(path)
-    for name in ('Start Little Figures.bat','START HERE - Windows.txt','README.md','ARCHITECTURE.md','LIMITATIONS.md','.env.example','.gitignore','.node-version','.python-version','pytest.ini'):
+    for name in ('Start Little Figures.bat','Update Little Figures.bat','app-version.json','START HERE - Windows.txt','README.md','ARCHITECTURE.md','LIMITATIONS.md','.env.example','.gitignore','.node-version','.python-version','pytest.ini'):
         files.append(ROOT / name)
     TARGET.parent.mkdir(exist_ok=True)
     temporary = TARGET.with_suffix('.zip.tmp')
@@ -30,7 +31,7 @@ def package():
         if archive.testzip() is not None:
             raise RuntimeError('Package CRC verification failed.')
         names = archive.namelist()
-        for name in ('Start Little Figures.bat','scripts/launch_local.py','frontend/dist/index.html',
+        for name in ('Start Little Figures.bat','Update Little Figures.bat','app-version.json','scripts/update_local.py','scripts/launch_local.py','frontend/dist/index.html',
                      'backend/requirements-appearance.txt','scripts/download_appearance_model.py',
                      'scripts/download_people_model.py','scripts/download_garment_model.py',
                      'scripts/model_licenses/SCHP-MIT.txt','backend/app/people.py',
@@ -40,7 +41,10 @@ def package():
         if any('/.local/' in name or '/.venv/' in name or '/.git/' in name or '/node_modules/' in name for name in names):
             raise RuntimeError('Private setup/cache directory found in package.')
     temporary.replace(TARGET)
+    with ZipFile(UPDATER_TARGET,'w',compression=ZIP_DEFLATED,compresslevel=6) as archive:
+        archive.write(ROOT/'Update Little Figures.bat','Update Little Figures.bat')
     print(f'{TARGET.name}: {TARGET.stat().st_size/1024/1024:.2f} MiB; SHA256 {hashlib.sha256(TARGET.read_bytes()).hexdigest()}')
+    print(f'{UPDATER_TARGET.name}: one shortcut, {UPDATER_TARGET.stat().st_size:,} bytes')
 
 
 if __name__ == '__main__':

@@ -1,8 +1,12 @@
-LITTLE FIGURES STUDIO 3 - WINDOWS
+LITTLE FIGURES STUDIO 3.1 - WINDOWS
 
-UPGRADE
-Save important old projects, close the old launcher, and extract this new ZIP
-into its own folder. Do not run the launcher from inside the ZIP.
+UPGRADE AN EXISTING INSTALLATION
+Save important projects and close the old launcher for this first update.
+Put "Update Little Figures.bat" beside "Start Little Figures.bat", then
+open the update shortcut. Keep using the same folder. Your models, private
+Python environment and saved files stay in place. Later updates can stop
+and restart the local app automatically when generation/analysis is idle.
+The updater keeps app-file backups in .local/updates/backups.
 
 START
 1. Double-click "Start Little Figures.bat".
@@ -17,9 +21,12 @@ MAKE YOUR GROUP
    detection indicators, not crops of the future model.
 3. If someone is missing, mark their body using "Someone is missing".
 4. Confirm everyone is included, then choose "Generate whole group".
-5. Inspect the scene, set its size and optional shared pedestal, then download.
+5. Inspect poses/details, set size, choose figure bases or a shared pedestal,
+   then regenerate and download. New photo groups have round bases by default.
 
-Poses, broad clothing shapes, and recognized accessories come from the photo.
+Visible poses, broad clothing shapes, and recognized accessories come from the
+photo. Unclear clothing is automatically estimated and clearly labeled. Hems,
+cuffs, lapels, folds, small noses and accessory details are actual 3D surfaces.
 There are no pose or accessory menus. Everyone is generated/exported together.
 If a person or major detail cannot be reconstructed, read the on-screen notes.
 Difficult, cropped, overlapping, or small subjects may need a clearer photo.

@@ -95,16 +95,18 @@ def test_same_pixel_pose_keeps_its_angles_in_portrait_and_landscape_photos():
     assert_printable_round_trip(generate(landscape))
 
 
-def test_new_style_has_an_oversized_head_and_no_projecting_nose():
+def test_new_style_has_an_oversized_head_and_a_printable_rounded_nose():
     mesh=generate(Figure(id='style',height_mm=100,base={'shape':'none'}))
     top=mesh.bounds[1,2]
     head_vertices=mesh.vertices[mesh.vertices[:,2]>top-38]
     assert np.ptp(head_vertices[:,0])>38
-    # The face's center stays behind the head's curved front silhouette: there
-    # is no projecting nose in the small region between eyes and mouth.
+    # The central nose must project beyond the adjacent cheek surfaces, while
+    # the original eye and mouth recesses remain real printable cavities.
     front=head_vertices[(abs(head_vertices[:,0])<1.5)&
                         (head_vertices[:,2]>top-22)&(head_vertices[:,2]<top-17)]
-    assert front[:,1].min()>=head_vertices[:,1].min()-.05
+    cheek=head_vertices[(abs(head_vertices[:,0])>3)&(abs(head_vertices[:,0])<4.5)&
+                        (head_vertices[:,2]>top-22)&(head_vertices[:,2]<top-17)]
+    assert front[:,1].min()<cheek[:,1].min()-1.2
     groups=np.asarray(mesh.metadata['face_groups'])
     assert len(groups)==len(mesh.faces)
     assert set(groups)=={0,1}

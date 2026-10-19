@@ -1,0 +1,219 @@
+{
+  "schema": 1,
+  "version": "3.1.0",
+  "archive_url": "https://raw.githubusercontent.com/kevinhoangkim-netizen/smiski3D/main/downloads/releases/Little-Figures-Update-3.1.0.zip",
+  "archive_sha256": "75a2c31e6ad16fac004f53c727907e34d325cdcd20c1a48a5f5a56bb3b8d1d4a",
+  "archive_size": 523663,
+  "files": [
+    {
+      "path": "ARCHITECTURE.md",
+      "size": 9226,
+      "sha256": "0618b53a9b1ec56f6c83b053cdfaff42f717b43db11d274ed9b8740831216327"
+    },
+    {
+      "path": "LIMITATIONS.md",
+      "size": 7218,
+      "sha256": "6a1a63620d447197ce36c76e53b29d9247ce809907701765a6faf0e8182188e8"
+    },
+    {
+      "path": "README.md",
+      "size": 12653,
+      "sha256": "7bf7f4ec2cd1fa24a5378cfadf28f2fe09d33276380a8a9151d4d384d3626e90"
+    },
+    {
+      "path": "START HERE - Windows.txt",
+      "size": 2295,
+      "sha256": "93d434caa423d9aad6c58af32086922ad19f2eb45c5a4f3198c42cc19ddddd47"
+    },
+    {
+      "path": "Start Little Figures.bat",
+      "size": 975,
+      "sha256": "25fc80395ba575e74d40fa1480f37f7cf5aa043ff14a442a2e40a70bdbaf0592"
+    },
+    {
+      "path": "Update Little Figures.bat",
+      "size": 31790,
+      "sha256": "94e96614dc9d455b7b2b6d4ab65c388923dc75e3ea6ef3dfd5a7594384757d79"
+    },
+    {
+      "path": "app-version.json",
+      "size": 20,
+      "sha256": "d7227d96730b04314ca8aad4ca6f48a5947a6eb9d6e2a54186cb9a0afc49cfb4"
+    },
+    {
+      "path": "backend/app/__init__.py",
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "backend/app/appearance.py",
+      "size": 28658,
+      "sha256": "0a5b588eb863197d5e46403af81ae084d3338c4b5ff21d39806c38df33ab0a24"
+    },
+    {
+      "path": "backend/app/figure_style.py",
+      "size": 22448,
+      "sha256": "62764bf63edbf6259c541b0d81b885b97a156ca65f61c4f6e3ecdf4f29dfafd1"
+    },
+    {
+      "path": "backend/app/garment_estimation.py",
+      "size": 10197,
+      "sha256": "d22922e65f7eb4cd687d007349243aa730115a1321c289572aa7a0470564316e"
+    },
+    {
+      "path": "backend/app/garment_parser.py",
+      "size": 15254,
+      "sha256": "298e9a9e6587cf0833453d63a94efd68d29234389193d512352bfcd82735e2da"
+    },
+    {
+      "path": "backend/app/geometry.py",
+      "size": 25455,
+      "sha256": "86ed16480a98a6cc51f0e9257c84e6fcfe8a02f2235057ae8ba8fd42138e6598"
+    },
+    {
+      "path": "backend/app/main.py",
+      "size": 14823,
+      "sha256": "7a50c9f6cfa1e57f53a50e39057132b4b997d12d9b3da2f17fc524e6e48c5659"
+    },
+    {
+      "path": "backend/app/pedestal.py",
+      "size": 9785,
+      "sha256": "4eef3cd893ca54c3fa38dcb2882040546ad57cf343441094e5daa8d771ae15aa"
+    },
+    {
+      "path": "backend/app/people.py",
+      "size": 7512,
+      "sha256": "348c47f31c19b78a6e533054507e129d50adb283b1115e7192cd4c89dbdc7101"
+    },
+    {
+      "path": "backend/app/pose.py",
+      "size": 23940,
+      "sha256": "3d3e2630301f72050e85eeea05083add128814908759aba9378323511cf00494"
+    },
+    {
+      "path": "backend/app/schemas.py",
+      "size": 6770,
+      "sha256": "59e8409b34a152581ee0c851eef1a49655d4f38965b930122399c01606388cc7"
+    },
+    {
+      "path": "backend/requirements-appearance.txt",
+      "size": 117,
+      "sha256": "a44a2f8fae4c0bd69ccadf84102a44ff9c9d420d0d87368303bfc7e233e7d981"
+    },
+    {
+      "path": "backend/requirements.lock.txt",
+      "size": 1077,
+      "sha256": "cadc7b00f1f43c159ab16ad7de184e806390c0d43c5c3ca28da9d36c80e782ee"
+    },
+    {
+      "path": "backend/requirements.txt",
+      "size": 235,
+      "sha256": "753ed9ed6aeba2f016243bb5893d771d71eea94cf01ef0a7584cde23ed0d7ff3"
+    },
+    {
+      "path": "frontend/dist/assets/graphics-C2uK9ymY.js",
+      "size": 489291,
+      "sha256": "1905bb9299ef4516f4264b0b4f476259d321723b673c593c15db47652adbd6d6"
+    },
+    {
+      "path": "frontend/dist/assets/index-BRbCijNg.js",
+      "size": 328371,
+      "sha256": "71c8951e7f2124f790edab9cfe2b75a30710141de86cf650c2c1643a95364d0a"
+    },
+    {
+      "path": "frontend/dist/assets/index-DtFXzeiE.css",
+      "size": 35301,
+      "sha256": "09acb74fff73de67e047582ec8338a04a6f6071ff48857e910335f3701a694e9"
+    },
+    {
+      "path": "frontend/dist/assets/react-1zw1pNgy.js",
+      "size": 11718,
+      "sha256": "e85d3c8ff0955517fd2d1c3f5df67ef6edd1570fe45679e2199eca290664d88f"
+    },
+    {
+      "path": "frontend/dist/index.html",
+      "size": 683,
+      "sha256": "2dae7637543936db1d2281d3760a9ab35172cb652e007865fd0a09ec6868c33a"
+    },
+    {
+      "path": "frontend/dist/welcome/assets/little-companions.png",
+      "size": 184575,
+      "sha256": "77c60256a2ce56eba9599e9d5ef512d3f47e41820479b84e4d1a57a0adf1467e"
+    },
+    {
+      "path": "frontend/dist/welcome/index.html",
+      "size": 8287,
+      "sha256": "f0d7de13b80c61124850d06c7d4765d1b57b5bc2ccb0f42a4942e38835a0f740"
+    },
+    {
+      "path": "frontend/dist/welcome/style.css",
+      "size": 12706,
+      "sha256": "7b6dad890850b5e358a65494a0fb45817f80d69a98d241c132ba47c1f9053726"
+    },
+    {
+      "path": "scripts/dev.sh",
+      "size": 523,
+      "sha256": "6509c6470ce5dac195909fcdaa3b99af47bba12bef80f3c4cecf2e6df79df93d"
+    },
+    {
+      "path": "scripts/download_appearance_model.py",
+      "size": 4605,
+      "sha256": "9c6f812d0b74b129ceaacb9b39a1b0491a74593eaf5297554b4859d7612eaf30"
+    },
+    {
+      "path": "scripts/download_garment_model.py",
+      "size": 3466,
+      "sha256": "d02ef69fbf399ed7bed3cc75e3f8766193ce1ef375d338d9c20b4536f6196079"
+    },
+    {
+      "path": "scripts/download_model.py",
+      "size": 844,
+      "sha256": "11d8cad1c3a2e0bb06a7aeffa8b8253b1b045e9b071455665ba8602492b4ff64"
+    },
+    {
+      "path": "scripts/download_people_model.py",
+      "size": 1867,
+      "sha256": "3a6ce3b4915e470caddc99fa126d50e8379ad93bccfd8eef6376ce3f552023a6"
+    },
+    {
+      "path": "scripts/generate_examples.py",
+      "size": 881,
+      "sha256": "41683777ed9d501d56483222949d3c06edff2be4981c431f346d887d95f3557b"
+    },
+    {
+      "path": "scripts/install.sh",
+      "size": 990,
+      "sha256": "ab5d5c58decf3768e5293a95fd440dc7c5ff32568a29a9468b9025894824b3ab"
+    },
+    {
+      "path": "scripts/launch_local.py",
+      "size": 7999,
+      "sha256": "1688036191eef071206bb38b68d6b183b945a7cbd5e6a788d23c394c4c659e6e"
+    },
+    {
+      "path": "scripts/model_licenses/SCHP-MIT.txt",
+      "size": 1065,
+      "sha256": "4b6f33d1127bad303130ad839fd79541e4390c43a4c4de3e9ebbdd90978df941"
+    },
+    {
+      "path": "scripts/package_update.py",
+      "size": 2397,
+      "sha256": "a09eeb0d0eb310297911b23572c7c08320d06ac12b07d582f0129fb165e9cae9"
+    },
+    {
+      "path": "scripts/package_windows.py",
+      "size": 3009,
+      "sha256": "0563a9c2be1683daa641a473249b6991816698e072679fa980e604ce59118522"
+    },
+    {
+      "path": "scripts/update_local.py",
+      "size": 29258,
+      "sha256": "89aa225f5cd2dde7cdc658bed7ffe9373c54bef250c65ba996774f185c160cc2"
+    },
+    {
+      "path": "scripts/verify_photo.py",
+      "size": 3680,
+      "sha256": "de3a0ca2d1428f0ac526c326f8073782018df81b630e54982200becbf0149a75"
+    }
+  ]
+}
